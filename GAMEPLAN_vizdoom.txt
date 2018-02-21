@@ -1,0 +1,15 @@
+
+
+
+
+wooo hooo, minor improvements
+
+
+SEE viz doom RL tutorials
+
+1) TRY converting it to categorical problem. 0,1,2 (3 types of rewards) and see if it works
+2) Try matching the DQN network, add more layers and see if it works better.
+3) Using DQN network, make it action specific and see the performance.
+
+
+3) Then run it. model.save, and model.load()
