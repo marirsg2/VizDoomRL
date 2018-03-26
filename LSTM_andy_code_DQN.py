@@ -151,6 +151,17 @@ def create_model(available_actions_count):
 
 def learn_from_memory(model,is_lstm = False, clone_model = None):
     """ Use replay memory to learn. Ignore s2 if s1 is terminal """
+
+
+    def non_update_lstm_predict(state_info):
+        ret_val = None
+        if clone_model!= None:
+            clone_model.set_weights(model.get_weights)
+        ret_val = model.predict(state_info, batch_size=batch_size)#lstm predict updates the state of the lstm modules
+        if clone_model != None:
+            model.set_weights(clone_model.get_weights)#restore weights to before prediction
+        return ret_val
+
     s1 = None
     if is_lstm == True:
         s1, a, s2, isterminal, r = memory.get_last_entry()
@@ -158,13 +169,22 @@ def learn_from_memory(model,is_lstm = False, clone_model = None):
         if memory.size > batch_size:
             s1, a, s2, isterminal, r = memory.get_sample(batch_size)
     if s1 != None:
-        q = model.predict(s2, batch_size=batch_size)
-        q2 = np.max(q, axis=1)
+        #lstm predict updates the state of the lstm modules
         if clone_model!= None:
-            clone_model.set_weights(model.get_weights)
-        target_q = model.predict(s1, batch_size=batch_size)#lstm predict updates the state of the lstm modules
+            clone_model.set_weights(model.get_weights())
+        q = model.predict(s2, batch_size=batch_size)#lstm predict updates the state of the lstm modules
         if clone_model != None:
-            model.set_weights(clone_model.get_weights)#restore weights to before prediction
+            model.set_weights(clone_model.get_weights())#restore weights to before prediction
+
+        q2 = np.max(q, axis=1)
+
+        # lstm predict updates the state of the lstm modules
+        if clone_model!= None:
+            clone_model.set_weights(model.get_weights())
+        target_q = model.predict(s2, batch_size=batch_size)#lstm predict updates the state of the lstm modules
+        if clone_model != None:
+            model.set_weights(clone_model.get_weights())#restore weights to before prediction
+
         target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2
         model.fit(s1, target_q,batch_size=batch_size, verbose=0)
 

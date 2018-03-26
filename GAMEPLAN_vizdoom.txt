@@ -10,6 +10,10 @@ For SML paper analysis
 
 ==================================
 
+IT maybe better to just batch train the lstm. store as episodes.
+    seems like you need time distributed module
+    review if the look_Back parameter is needed.
+
 
 Do the lstm save state anywhere else you do predict before fit.
 Double check the reset state cases
