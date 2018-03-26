@@ -9,39 +9,7 @@ For SML paper analysis
 
 
 ==================================
-@ TEsting:
-YES THE ORIGINAL MODEL does do well. So you are copying it over wrong.
-
-GET ANDY CODE FROM GITHUB. see performance
 
 
-@TRY: doing the 4 frames input.
-
-@TRY: Reducing action space for both.
-
-?? do I need to get conv working really good before stateful lstm.
-NOPE. after decent conv performance, switch to LSTM. ALTERNATE 2 INTEGRATE
-
-
-Add learning rate into the optimizer as a separate object
-
-FIX THIS
-The TensorFlow library wasn't compiled to use SSE4.1 instructions
-
-https://github.com/flyyufelix/VizDoom-Keras-RL
-
-use sklearn to scale the inputs. (LATER if needed !!!)
-
-? needs to output the reward for all actions.
-We have the reward (discounted) in the replay buffer.
-play entire episodes into the lstm.
-
-Do LSTM with stateful
-
-1) epochs in outer for loop
-2) Batch size of 1
-3) After convolution, reshape to have time step of 1
-        [samples, time steps, features]
-4) Manually reset the state after every epoch.
-
-When testing manually reset the state after every episode.
+Do the lstm save state anywhere else you do predict before fit.
+Double check the reset state cases

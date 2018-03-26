@@ -8,13 +8,15 @@ from time import time, sleep
 from keras.models import Sequential, Model, load_model as lm
 from keras.layers import Dense, Activation, Conv2D, Input, Flatten, LSTM, Reshape, RepeatVector
 from keras.optimizers import Adam
+
 import numpy as np
 import skimage.color, skimage.transform
 from tqdm import trange
+import copy
 
 # Q-learning hyperparams
 learning_rate = 0.00025
-discount_factor = 0.99
+discount_factor = 0.5
 epochs = 10
 learning_steps_per_epoch = 2000
 replay_memory_size = 10000
@@ -35,7 +37,7 @@ kframes = 1
 resolution[1] = resolution[1] * kframes
 episodes_to_watch = 10
 
-model_savefile = "models/model-doom.pth"
+model_savefile = "models/model-doom_disc50.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -95,18 +97,26 @@ class ReplayMemory:
         s2 = np.reshape(s2, reshape)
         return s1, self.a[i], s2, self.isterminal[i], self.r[i]
 
+    def get_last_entry(self):
+        target_idx = self.capacity #assume it is the last one (for looparound case)
+        if (self.pos != 0):
+            target_idx = self.pos-1 #previous case
+        #--end if
+        i = [target_idx]
+        return self.s1[i], self.a[i], self.s2[i], self.isterminal[i], self.r[i]
+
 
 def create_model(available_actions_count):
 
-    look_back = 4 #should be function of frame repeat
+
     state_input = Input( batch_shape=(batch_size,1, resolution[0], resolution[1]))
     conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
         state_input)  # filters, kernal_size, stride
     conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
         conv1)  # filters, kernal_size, stride
     flatten = Flatten()(conv2)
-    pre_lstm_dense = Dense(128, activation='relu')(flatten)
-    reshape_layer = RepeatVector(1)(pre_lstm_dense)
+
+    reshape_layer = RepeatVector(1)(flatten)
     lstm_layer = LSTM(32,stateful=True)(reshape_layer)
     fc1 = Dense(128,activation='relu')(lstm_layer)
     fc2 = Dense(available_actions_count)(fc1)
@@ -117,18 +127,44 @@ def create_model(available_actions_count):
     print(model.summary())
 
 
-    return state_input, model
+    #this is a copy of the model to keep weights when predicting during training
+    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
+        state_input)  # filters, kernal_size, stride
+    conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
+        conv1)  # filters, kernal_size, stride
+    flatten = Flatten()(conv2)
+    reshape_layer = RepeatVector(1)(flatten)
+    lstm_layer = LSTM(32, stateful=True)(reshape_layer)
+    fc1 = Dense(128, activation='relu')(lstm_layer)
+    fc2 = Dense(available_actions_count)(fc1)
+    copy_model = keras.models.Model(input=state_input, output=fc2)
+    adam = Adam(lr=0.001)
+    copy_model.compile(loss="mse", optimizer=adam)
 
 
-def learn_from_memory(model):
+
+    return state_input, model, copy_model
+
+
+
+
+
+def learn_from_memory(model,is_lstm = False, clone_model = None):
     """ Use replay memory to learn. Ignore s2 if s1 is terminal """
-
-    if memory.size > batch_size:
-        s1, a, s2, isterminal, r = memory.get_sample(batch_size)
-
+    s1 = None
+    if is_lstm == True:
+        s1, a, s2, isterminal, r = memory.get_last_entry()
+    else:
+        if memory.size > batch_size:
+            s1, a, s2, isterminal, r = memory.get_sample(batch_size)
+    if s1 != None:
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)
-        target_q = model.predict(s1, batch_size=batch_size)
+        if clone_model!= None:
+            clone_model.set_weights(model.get_weights)
+        target_q = model.predict(s1, batch_size=batch_size)#lstm predict updates the state of the lstm modules
+        if clone_model != None:
+            model.set_weights(clone_model.get_weights)#restore weights to before prediction
         target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2
         model.fit(s1, target_q,batch_size=batch_size, verbose=0)
 
@@ -194,7 +230,8 @@ def perform_learning_step(epoch):
     # Remember the transition that was just experienced.
     memory.add_transition(s1, a, s2, isterminal, reward)
 
-    learn_from_memory(model)
+    #todo for lstms train with the stream of data. No need to randomize the input
+    learn_from_memory(model, is_lstm = True,clone_model=clone_model)
 
 
 # Creates and initializes ViZDoom environment.
@@ -239,7 +276,7 @@ if __name__ == '__main__':
         model = lm(model_savefile)
         pass
     else:
-        my_input, model = create_model(len(actions))
+        my_input, model, clone_model = create_model(len(actions))
 
     print("Starting the training!")
     time_start = time()
@@ -248,7 +285,8 @@ if __name__ == '__main__':
             print("\nEpoch %d\n-------" % (epoch + 1))
             train_episodes_finished = 0
             train_scores = []
-
+            #todo reset lstm states
+            model.reset_states()
             print("Training...")
             game.new_episode()
             # with the lstm, what you have to do is RESET the model when the single episode is over
@@ -274,6 +312,8 @@ if __name__ == '__main__':
             test_scores = []
             for test_episode in trange(test_episodes_per_epoch, leave=False):
                 game.new_episode()
+                # todo reset lstm states
+                model.reset_states()
                 sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
