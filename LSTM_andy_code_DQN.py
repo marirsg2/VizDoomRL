@@ -98,7 +98,7 @@ class ReplayMemory:
         return s1, self.a[i], s2, self.isterminal[i], self.r[i]
 
     def get_last_entry(self):
-        target_idx = self.capacity #assume it is the last one (for looparound case)
+        target_idx = self.capacity-1 #assume it is the last one (for looparound case)
         if (self.pos != 0):
             target_idx = self.pos-1 #previous case
         #--end if
