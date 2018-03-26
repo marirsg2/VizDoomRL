@@ -3,6 +3,8 @@
 from __future__ import division
 from __future__ import print_function
 from vizdoom import *
+
+
 import itertools as it
 from random import sample, randint, random
 from time import time, sleep
@@ -10,6 +12,14 @@ import numpy as np
 import skimage.color, skimage.transform
 import tensorflow as tf
 from tqdm import trange
+
+from keras.models import Sequential
+from keras.layers import LSTM, Conv2D, Dense, Flatten, Reshape
+from keras.layers.normalization import BatchNormalization
+from keras import backend as K
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 
 # Q-learning settings
 learning_rate = 0.00025
@@ -31,11 +41,11 @@ resolution = (30, 45)
 episodes_to_watch = 10
 
 model_savefile = "/tmp/model.ckpt"
-save_model = False
-load_model = True
-skip_learning = True
+save_model = True
+load_model = False
+skip_learning = False
 # Configuration file path
-config_file_path = "../ViZDoom/scenarios/basic.cfg"
+config_file_path = "../ViZDoom/scenarios/basic.wad"
 
 
 # config_file_path = "../../scenarios/rocket_basic.cfg"
@@ -57,6 +67,7 @@ class ReplayMemory:
         self.a = np.zeros(capacity, dtype=np.int32)
         self.r = np.zeros(capacity, dtype=np.float32)
         self.isterminal = np.zeros(capacity, dtype=np.float32)
+        self.episode_start_idx = [0]
 
         self.capacity = capacity
         self.size = 0
@@ -68,6 +79,8 @@ class ReplayMemory:
         if not isterminal:
             self.s2[self.pos, :, :, 0] = s2
         self.isterminal[self.pos] = isterminal
+        if isterminal:
+            self.episode_start_idx = self.pos
         self.r[self.pos] = reward
 
         self.pos = (self.pos + 1) % self.capacity
@@ -77,64 +90,143 @@ class ReplayMemory:
         i = sample(range(0, self.size), sample_size)
         return self.s1[i], self.a[i], self.s2[i], self.isterminal[i], self.r[i]
 
+    def get__fullEpisode_sample(self):
+        '''
+        :summary: from the existing start point, to the next terminal point.
+        if the next terminal point is not at the end (self.pos) throw error
+        :return:
+        '''
+        if self.pos < self.episode_start_idx:
+            episode_indices = list(range(self.episode_start_idx,self.capacity)) + list(range(0,self.pos))
+        else:
+            episode_indices = list(range(self.episode_start_idx, self.pos))
+        return self.s1[episode_indices], self.a[episode_indices], self.s2[episode_indices],\
+               self.isterminal[episode_indices], self.r[episode_indices]
 
-def create_network(session, available_actions_count):
-    # Create the input variables
-    s1_ = tf.placeholder(tf.float32, [None] + list(resolution) + [1], name="State")
-    a_ = tf.placeholder(tf.int32, [None], name="Action")
-    target_q_ = tf.placeholder(tf.float32, [None, available_actions_count], name="TargetQ")
+#=========================================================
+#=========================================================
+#=========================================================
 
-    # Add 2 convolutional layers with ReLu activation
-    conv1 = tf.contrib.layers.convolution2d(s1_, num_outputs=8, kernel_size=[6, 6], stride=[3, 3],
-                                            activation_fn=tf.nn.relu,
-                                            weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                            biases_initializer=tf.constant_initializer(0.1))
-    conv2 = tf.contrib.layers.convolution2d(conv1, num_outputs=8, kernel_size=[3, 3], stride=[2, 2],
-                                            activation_fn=tf.nn.relu,
-                                            weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                            biases_initializer=tf.constant_initializer(0.1))
-    conv2_flat = tf.contrib.layers.flatten(conv2)
-    fc1 = tf.contrib.layers.fully_connected(conv2_flat, num_outputs=128, activation_fn=tf.nn.relu,
-                                            weights_initializer=tf.contrib.layers.xavier_initializer(),
-                                            biases_initializer=tf.constant_initializer(0.1))
+def create_keras_network(available_actions_count):
 
-    q = tf.contrib.layers.fully_connected(fc1, num_outputs=available_actions_count, activation_fn=None,
-                                          weights_initializer=tf.contrib.layers.xavier_initializer(),
-                                          biases_initializer=tf.constant_initializer(0.1))
-    best_a = tf.argmax(q, 1)
+    #todo add batch norm between layers
+    k_model = Sequential()
+    k_model.add(Conv2D(filters=8,kernel_size=[6,6], strides=[3,3], activation='relu',\
+                       input_shape= resolution))
+    # k_model.add(BatchNormalization())
+    k_model.add(Conv2D(filters=8,kernel_size=[6,6], strides=[3,3], activation='relu',\
+                       input_shape= resolution))
+    k_model.add(Flatten())
+    #reshape it to batch_size x timesteps x features. Which is 1x1xfeature_shape
+    a = k_model.output_shape
+    k_model.reshape(k_model.output_shape)
 
-    loss = tf.losses.mean_squared_error(q, target_q_)
+    k_model.add(Dense(128,activation='relu'))
+    k_model.add(Dense(available_actions_count,activation='relu'))
+    k_model.compile(optimizer="adam", loss='mse',learning_rate = learning_rate)
+    k_model.summary()
 
-    optimizer = tf.train.RMSPropOptimizer(learning_rate)
-    # Update the parameters according to the computed gradient using RMSProp.
-    train_step = optimizer.minimize(loss)
 
     def function_learn(s1, target_q):
-        feed_dict = {s1_: s1, target_q_: target_q}
-        l, _ = session.run([loss, train_step], feed_dict=feed_dict)
-        return l
+        '''
+        :summary: This will run fit/learn
+        :param s1: This is an array
+        :param target_q: This is an array. Each entry will contain the q values for all 3 actions.
+        :return:
+        '''
+        #todo train the array as one epoch of batchsize = 1, then RESET LSTM state for the next epoch.
+        k_model.fit(s1,target_q,batch_size=1)
+
 
     def function_get_q_values(state):
-        return session.run(q, feed_dict={s1_: state})
+        '''
+        :param state: tHIS IS an ordered sequence of states
+        :return: An ordered sequence of output values
+        '''
+        #todo reset the k_model state
+        k_model.reset_states()
+        #now run the states through the model
+        outputs = []
+        for single_state in state:
+            outputs.append(k_model.predict([single_state], batch_size=1))
+        return outputs
 
     def function_get_best_action(state):
-        return session.run(best_a, feed_dict={s1_: state})
+        K.argmax(function_get_q_values(state),axis=-1)
 
     def function_simple_get_best_action(state):
-        return function_get_best_action(state.reshape([1, resolution[0], resolution[1], 1]))[0]
+        K.argmax(function_get_q_values(state), axis=-1)
 
     return function_learn, function_get_q_values, function_simple_get_best_action
+# =========================================================
+# =========================================================
+# =========================================================
+
+# def create_network(session, available_actions_count):
+#     # Create the input variables
+#     s1_ = tf.placeholder(tf.float32, [None] + list(resolution) + [1], name="State")
+#     a_ = tf.placeholder(tf.int32, [None], name="Action")
+#     target_q_ = tf.placeholder(tf.float32, [None, available_actions_count], name="TargetQ")
+#
+#     # Add 2 convolutional layers with ReLu activation
+#     conv1 = tf.contrib.layers.convolution2d(s1_, num_outputs=8, kernel_size=[6, 6], stride=[3, 3],
+#                                             activation_fn=tf.nn.relu,
+#                                             weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+#                                             biases_initializer=tf.constant_initializer(0.1))
+#     conv2 = tf.contrib.layers.convolution2d(conv1, num_outputs=8, kernel_size=[3, 3], stride=[2, 2],
+#                                             activation_fn=tf.nn.relu,
+#                                             weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+#                                             biases_initializer=tf.constant_initializer(0.1))
+#     conv2_flat = tf.contrib.layers.flatten(conv2)
+#     fc1 = tf.contrib.layers.fully_connected(conv2_flat, num_outputs=128, activation_fn=tf.nn.relu,
+#                                             weights_initializer=tf.contrib.layers.xavier_initializer(),
+#                                             biases_initializer=tf.constant_initializer(0.1))
+#
+#     q = tf.contrib.layers.fully_connected(fc1, num_outputs=available_actions_count, activation_fn=None,
+#                                           weights_initializer=tf.contrib.layers.xavier_initializer(),
+#                                           biases_initializer=tf.constant_initializer(0.1))
+#     best_a = tf.argmax(q, 1)
+#
+#     loss = tf.losses.mean_squared_error(q, target_q_)
+#
+#     optimizer = tf.train.RMSPropOptimizer(learning_rate)
+#     # Update the parameters according to the computed gradient using RMSProp.
+#     train_step = optimizer.minimize(loss)
+#
+#
+#
+#     def function_learn(s1, target_q):
+#         feed_dict = {s1_: s1, target_q_: target_q}
+#         l, _ = session.run([loss, train_step], feed_dict=feed_dict)
+#         return l
+#
+#     def function_get_q_values(state):
+#         return session.run(q, feed_dict={s1_: state})
+#
+#     def function_get_best_action(state):
+#         return session.run(best_a, feed_dict={s1_: state})
+#
+#     def function_simple_get_best_action(state):
+#         return function_get_best_action(state.reshape([1, resolution[0], resolution[1], 1]))[0]
+#
+#     return function_learn, function_get_q_values, function_simple_get_best_action
 
 
 def learn_from_memory():
-    """ Learns from a single transition (making use of replay memory).
-    s2 is ignored if s2_isterminal """
+    """
+    Once we have a full episode. we can run one epoch of the lstm, with batch size =1. Why? because
+    stateful == True for this approach.
+    the reward is low value (-1 ot -6) when we dont kill a monster. Only when we do kill a monster,
+    do we get reward of 1.
+     """
 
     # Get a random minibatch from the replay memory and learns from it.
     if memory.size > batch_size:
-        s1, a, s2, isterminal, r = memory.get_sample(batch_size)
-
+        #TODO, CHANGE THIS to get a contiguous batch, not of a fixed size, but until terminal state
+        s1, a, s2, isterminal, r = memory.get__fullEpisode_sample(batch_size)
+        #todo, the q values is also generated sequentially by the lstm
         q2 = np.max(get_q_values(s2), axis=1)
+        # todo, the q values is also generated sequentially by the lstm
         target_q = get_q_values(s1)
         # target differs from q only for the selected action. The following means:
         # target_Q(s,a) = r + gamma * max Q(s2,_) if isterminal else r
@@ -179,7 +271,9 @@ def perform_learning_step(epoch):
     # Remember the transition that was just experienced.
     memory.add_transition(s1, a, s2, isterminal, reward)
 
-    learn_from_memory()
+    #todo only learn if is terminal. Now we have a complete episode
+    if(isterminal):
+        learn_from_memory()
 
 
 # Creates and initializes ViZDoom environment.
@@ -208,7 +302,7 @@ if __name__ == '__main__':
     memory = ReplayMemory(capacity=replay_memory_size)
 
     session = tf.Session()
-    learn, get_q_values, get_best_action = create_network(session, len(actions))
+    learn, get_q_values, get_best_action = create_keras_network(len(actions))
     saver = tf.train.Saver()
     if load_model:
         print("Loading model from: ", model_savefile)

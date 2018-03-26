@@ -1,15 +1,47 @@
 
+==================================
+
+For SML paper analysis
+
+1) Vary Epsilon, and exploration time AGAINST the number of actions (8 vs 3) and see how long the optimal policy takes
 
 
 
-wooo hooo, minor improvements
+
+==================================
+@ TEsting:
+YES THE ORIGINAL MODEL does do well. So you are copying it over wrong.
+
+GET ANDY CODE FROM GITHUB. see performance
 
 
-SEE viz doom RL tutorials
+@TRY: doing the 4 frames input.
 
-1) TRY converting it to categorical problem. 0,1,2 (3 types of rewards) and see if it works
-2) Try matching the DQN network, add more layers and see if it works better.
-3) Using DQN network, make it action specific and see the performance.
+@TRY: Reducing action space for both.
+
+?? do I need to get conv working really good before stateful lstm.
+NOPE. after decent conv performance, switch to LSTM. ALTERNATE 2 INTEGRATE
 
 
-3) Then run it. model.save, and model.load()
+Add learning rate into the optimizer as a separate object
+
+FIX THIS
+The TensorFlow library wasn't compiled to use SSE4.1 instructions
+
+https://github.com/flyyufelix/VizDoom-Keras-RL
+
+use sklearn to scale the inputs. (LATER if needed !!!)
+
+? needs to output the reward for all actions.
+We have the reward (discounted) in the replay buffer.
+play entire episodes into the lstm.
+
+Do LSTM with stateful
+
+1) epochs in outer for loop
+2) Batch size of 1
+3) After convolution, reshape to have time step of 1
+        [samples, time steps, features]
+4) Manually reset the state after every epoch.
+
+When testing manually reset the state after every episode.
