@@ -1,0 +1,8 @@
+
+
+1) With frame rate of 4, we need more training time. More actions, and more granularity requires more training.
+
+2)Linear layers is too many parameter !! WAAY higher. Works ok for basic, bad for dfc. May work with much more training.
+
+3)
+

@@ -13,9 +13,9 @@ import skimage.color, skimage.transform
 from tqdm import trange
 
 # Q-learning hyperparams
-learning_rate = 0.00025
+learning_rate = 0.001
 discount_factor = 0.99
-epochs = 10
+epochs = 20
 learning_steps_per_epoch = 2000
 replay_memory_size = 10000
 
@@ -35,7 +35,7 @@ kframes = 1
 resolution[1] = resolution[1] * kframes
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_dfc.pth"
+model_savefile = "models/df_ctr_frame12_d99.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -98,32 +98,15 @@ class ReplayMemory:
 
 def create_model(available_actions_count):
     state_input = Input(shape=(1, resolution[0], resolution[1]))
-    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
-        state_input)  # filters, kernal_size, stride
-    conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
-        conv1)  # filters, kernal_size, stride
-    flatten = Flatten()(conv2)
-    fc1 = Dense(128, activation='relu')(flatten)
+    flatten = Flatten()(state_input)
+    fc0 = Dense(128, activation='relu')(flatten)
+    fc1 = Dense(128, activation='relu')(fc0)
     fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
 
     model = keras.models.Model(input=state_input, output=fc2)
-    adam = Adam(lr=0.001)
+    adam = Adam(lr=learning_rate)
     model.compile(loss="mse", optimizer=adam)
     print(model.summary())
-
-    # state_input = Input(shape=(1, resolution[0], resolution[1]))
-    # k_model = Sequential()
-    # k_model.add(Conv2D(filters=8,kernel_size=6, strides=3, activation='relu',\
-    #                    input_shape= (1, resolution[0], resolution[1]),data_format="channels_first"))
-    # k_model.add(Conv2D(filters=8,kernel_size=3, strides=2, activation='relu'))
-    # k_model.add(Flatten())
-    #
-    # k_model.add(Dense(128, input_shape=(192,), activation='relu'))
-    # k_model.add(Dense(available_actions_count,activation='relu'))
-    # adam = Adam(lr=0.001)
-    # k_model.compile(optimizer=adam, loss='mse')
-    # k_model.summary()
-
 
     return state_input, model
 
@@ -329,4 +312,3 @@ if __name__ == '__main__':
         score = game.get_total_reward()
         print("Total score: ", score)
 
-state_input, model = create_model(8)

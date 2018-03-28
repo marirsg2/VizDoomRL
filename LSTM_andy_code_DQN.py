@@ -15,8 +15,8 @@ from tqdm import trange
 import copy
 
 # Q-learning hyperparams
-learning_rate = 0.00025
-discount_factor = 0.5
+learning_rate = 0.001
+discount_factor = 0.95
 epochs = 10
 learning_steps_per_epoch = 2000
 replay_memory_size = 10000
@@ -38,6 +38,8 @@ resolution[1] = resolution[1] * kframes
 episodes_to_watch = 10
 
 model_savefile = "models/model-doom_disc50.pth"
+tmp_model_savefile = "models/tmp_model.pth"
+
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -50,6 +52,17 @@ config_file_path = "../ViZDoom/scenarios/basic.cfg"
 
 import warnings
 warnings.filterwarnings("ignore")
+
+
+import keras.backend as K
+
+def get_states(model):
+    return [K.get_value(s) for s,_ in model.state_updates]
+
+def set_states(model, states):
+    for (d,_), s in zip(model.state_updates, states):
+        K.set_value(d, s)
+
 
 def preprocess(img):
     """"""
@@ -122,7 +135,7 @@ def create_model(available_actions_count):
     fc2 = Dense(available_actions_count)(fc1)
 
     model = keras.models.Model(input=state_input, output=fc2)
-    adam = Adam(lr=0.001)
+    adam = Adam(lr= learning_rate)
     model.compile(loss="mse", optimizer=adam)
     print(model.summary())
 
@@ -147,20 +160,9 @@ def create_model(available_actions_count):
 
 
 
-
-
 def learn_from_memory(model,is_lstm = False, clone_model = None):
     """ Use replay memory to learn. Ignore s2 if s1 is terminal """
 
-
-    def non_update_lstm_predict(state_info):
-        ret_val = None
-        if clone_model!= None:
-            clone_model.set_weights(model.get_weights)
-        ret_val = model.predict(state_info, batch_size=batch_size)#lstm predict updates the state of the lstm modules
-        if clone_model != None:
-            model.set_weights(clone_model.get_weights)#restore weights to before prediction
-        return ret_val
 
     s1 = None
     if is_lstm == True:
@@ -168,25 +170,28 @@ def learn_from_memory(model,is_lstm = False, clone_model = None):
     else:
         if memory.size > batch_size:
             s1, a, s2, isterminal, r = memory.get_sample(batch_size)
-    if s1 != None:
-        #lstm predict updates the state of the lstm modules
-        if clone_model!= None:
-            clone_model.set_weights(model.get_weights())
-        q = model.predict(s2, batch_size=batch_size)#lstm predict updates the state of the lstm modules
-        if clone_model != None:
-            model.set_weights(clone_model.get_weights())#restore weights to before prediction
 
-        q2 = np.max(q, axis=1)
 
-        # lstm predict updates the state of the lstm modules
-        if clone_model!= None:
-            clone_model.set_weights(model.get_weights())
-        target_q = model.predict(s2, batch_size=batch_size)#lstm predict updates the state of the lstm modules
-        if clone_model != None:
-            model.set_weights(clone_model.get_weights())#restore weights to before prediction
+    # lstm predict updates the state of the lstm modules
+    #get the current state action values. LET the lstm state get updated,
+    # BUT save the weights for fitting
+    model.save(tmp_model_savefile)
+    target_q = model.predict(s1, batch_size=batch_size)#lstm predict updates the state of the lstm modules
 
-        target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2
-        model.fit(s1, target_q,batch_size=batch_size, verbose=0)
+    #lstm predict updates the state of the lstm modules
+    #get next state lstm values, but recover the lstm state using the clone model to hold weights
+
+    q_next = model.predict(s2, batch_size=batch_size)#lstm predict updates the state of the lstm modules
+    max_q_next = np.max(q_next, axis=1)
+    target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * max_q_next
+    #now recover the weights (including the memory) for fitting
+    model = lm(tmp_model_savefile)
+    model.fit(s1, target_q,batch_size=batch_size, verbose=0)
+
+    #todo test if fit changed the prediction
+
+    #AND again step the lstm forward for the next state.
+    _ = model.predict(s1, batch_size=batch_size)
 
 
 class StateBuilder:
@@ -205,8 +210,12 @@ class StateBuilder:
         return self.state
 
 
-def get_best_action(state):
+def get_best_action(state, preserve_state = False):
+    if preserve_state:
+        clone_model.set_weights(model.get_weights())
     q = model.predict(state, batch_size=1)
+    if preserve_state:
+        model.set_weights(clone_model.get_weights())
     m = np.argmax(q, axis=1)[0]
     action = m  # wrong
     return action
@@ -241,7 +250,7 @@ def perform_learning_step(epoch):
     else:
         # Choose the best action according to the network.
         s1 = s1.reshape([1, 1, resolution[0], resolution[1] // kframes])
-        a = get_best_action(s1)
+        a = get_best_action(s1,preserve_state=True)
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
@@ -340,7 +349,7 @@ if __name__ == '__main__':
                     frame = frame.reshape([1, 1, resolution[0], resolution[1] // kframes])
                     state = sb.get_state(frame)
 
-                    best_action_index = get_best_action(state)
+                    best_action_index = get_best_action(state,preserve_state=False)
 
                     game.make_action(actions[best_action_index], frame_repeat)
                 r = game.get_total_reward()
@@ -372,7 +381,7 @@ if __name__ == '__main__':
             frame = preprocess(game.get_state().screen_buffer)
             frame = frame.reshape([1, 1, resolution[0], resolution[1] // kframes])
             state = sb.get_state(frame)
-            best_action_index = get_best_action(state)
+            best_action_index = get_best_action(state,preserve_state=False)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             game.set_action(actions[best_action_index])
@@ -384,4 +393,3 @@ if __name__ == '__main__':
         score = game.get_total_reward()
         print("Total score: ", score)
 
-state_input, model = create_model(8)

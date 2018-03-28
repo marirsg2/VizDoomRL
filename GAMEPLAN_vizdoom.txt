@@ -10,7 +10,47 @@ For SML paper analysis
 
 ==================================
 
+learned about save weights, and save state
+NEEDED save state for lstm prediction
+
+
+
+
+#TODO CHECK STACKOVERFLOW FOR THE ANSWER
+
+Scale the image !! GOOGLE THIS. Test on the DQN code first !!
+
+
+
+
+THE REASON why retraining with larger epsilon affects the results is because the rest of the network was being used
+for controlling the single max action that was converged upon. so when adjusting for other action's values, we perturb
+that.
+TESTING: Train for a long time with high epsilon. until the MSE (not game score), drops, THEN adjust epsilon,
+as well as reduce the learning rate.
+
+
+higher discount is better !! so we connect move and shoot, rather than just shoot.
+OR vice versa, LOWER discount, so rotate and shoot is not a behavior.
+
+1.5) HAve one epoch to just calculate the average image. Subtract from the successive images and feed that as
+the information. MAYBE do one better. NORMALIZE the image, and see what you get.
+
+auto enc is useless. the CNN does that.
+OR DOES IT!! andy worried that retraining causes weights to drop.
+
+
+
+2) TEST your expectation on the lstm learning code where you know the correct output and it works.
+
+
+
+Then try autoencoder
+
+
+LATER ALTERNATIVE: learning time distributed. and lstm pains.
 IT maybe better to just batch train the lstm. store as episodes.
+    look up examples. Modify code to store full episodes before training.
     seems like you need time distributed module
     review if the look_Back parameter is needed.
 
