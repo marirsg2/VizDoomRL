@@ -31,9 +31,9 @@ resolution = (30, 45)
 episodes_to_watch = 10
 
 model_savefile = "/tmp/model.ckpt"
-save_model = False
-load_model = True
-skip_learning = True
+save_model = True
+load_model = False
+skip_learning = False
 # Configuration file path
 config_file_path = "../ViZDoom/scenarios/basic.cfg"
 

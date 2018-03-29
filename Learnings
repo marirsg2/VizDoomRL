@@ -4,5 +4,32 @@
 
 2)Linear layers is too many parameter !! WAAY higher. Works ok for basic, bad for dfc. May work with much more training.
 
-3)
+3)THE REASON why retraining with larger epsilon affects the results is because the rest of the network was being used
+for controlling the single max action that was converged upon. so when adjusting for other action's values, we perturb
+that.
+TESTING: Train for a long time with high epsilon. until the MSE (not game score), drops, THEN adjust epsilon,
+as well as reduce the learning rate.
 
+
+def create_model(available_actions_count):
+
+    state_input = Input((kframes,1,resolution[0], resolution[1]))
+
+    conv1 = TimeDistributed(Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first"))(
+        state_input)  # filters, kernal_size, stride
+    conv2 = TimeDistributed(Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first"))(
+        conv1)  # filters, kernal_size, stride
+    flatten = TimeDistributed(Flatten())(conv2)
+
+    fc1 = TimeDistributed(Dense(128,activation='relu'))(flatten)
+    fc2 = TimeDistributed(Dense(64, activation='relu'))(fc1)
+    lstm_layer = LSTM(4,return_sequences=True)(fc2)
+    fc3 = Dense(128, activation='relu')(lstm_layer)
+    fc4 = Dense(available_actions_count)(fc3)
+
+    model = keras.models.Model(input=state_input, output=fc4)
+    adam = RMSprop(lr= learning_rate)
+    model.compile(loss="mse", optimizer=adam)
+    print(model.summary())
+
+    return state_input, model

@@ -14,21 +14,24 @@ learned about save weights, and save state
 NEEDED save state for lstm prediction
 
 
+In get_best_action:
+   #need to get the previous k-1 frames from the memory, and append the current state to it,
+   if not there, return a random action.
+
+TEST you k-frame implementation with CNN only
+
+
+
+@2) THE ONLY benefit of lstm is that a DIFFERENT CNN is applied to each time step, and then converged into the lstm.
+JUST test this version too. see if lstm works at all. That way you can make peace.
+TAKE ANDY's k-frames, and use that as the time parameter !! remove batch size and stateful
+
+?? if the stateful is removed, do I need to remember the state? nope.
 
 
 #TODO CHECK STACKOVERFLOW FOR THE ANSWER
 
-Scale the image !! GOOGLE THIS. Test on the DQN code first !!
-
-
-
-
-THE REASON why retraining with larger epsilon affects the results is because the rest of the network was being used
-for controlling the single max action that was converged upon. so when adjusting for other action's values, we perturb
-that.
-TESTING: Train for a long time with high epsilon. until the MSE (not game score), drops, THEN adjust epsilon,
-as well as reduce the learning rate.
-
+LOOK AT THE TERMINAL OUTPUT, what do you see.
 
 higher discount is better !! so we connect move and shoot, rather than just shoot.
 OR vice versa, LOWER discount, so rotate and shoot is not a behavior.
