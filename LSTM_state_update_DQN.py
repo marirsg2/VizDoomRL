@@ -152,8 +152,6 @@ def learn_from_memory(model,is_lstm = False):
         if memory.size > batch_size:
             s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
-    #TODO CHECK STACKOVERFLOW FOR THE ANSWER
-
     #save the state (lstm mem) for recovery before fitting.
     prev_state = get_model_states(model)
     target_q = model.predict(s1, batch_size=batch_size)#lstm predict updates the state of the lstm modules
@@ -221,7 +219,7 @@ def perform_learning_step(epoch):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        s1 = s1.reshape([1, 1,1, resolution[0], resolution[1] // kframes])
+        s1 = s1.reshape([1, 1,1, resolution[0], resolution[1] ])
         a = get_best_action(s1,preserve_state=True)
     reward = game.make_action(actions[a], frame_repeat)
 
@@ -315,11 +313,9 @@ if __name__ == '__main__':
                 game.new_episode()
                 # todo reset lstm states
                 model.reset_states()
-                sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
-                    state = frame.reshape([1, 1,1, resolution[0], resolution[1] // kframes])
-                    # state = sb.get_state(state)
+                    state = frame.reshape([1, 1,1, resolution[0], resolution[1]])
 
                     best_action_index = get_best_action(state,preserve_state=False)
 
@@ -352,8 +348,7 @@ if __name__ == '__main__':
         # sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
         while not game.is_episode_finished():
             frame = preprocess(game.get_state().screen_buffer)
-            state = frame.reshape([1, 1,1, resolution[0], resolution[1] // kframes])
-            # state = sb.get_state(frame)
+            state = frame.reshape([1, 1,1, resolution[0], resolution[1]])
             best_action_index = get_best_action(state,preserve_state=False)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth

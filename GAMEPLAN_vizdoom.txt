@@ -14,9 +14,14 @@ learned about save weights, and save state
 NEEDED save state for lstm prediction
 
 
-In get_best_action:
-   #need to get the previous k-1 frames from the memory, and append the current state to it,
-   if not there, return a random action.
+NOOO...need to segment by isTerminal state information.
+Also when testing, prolly need separate memory container ?? YES ! needed.
+
+NOPE, SOLUTION: Get sample will pull out the right sample size with preceeding zero frames.
+When you want to get best action, simple insert the current state in the last position.
+ALSO ask for the sample in the recent past.
+
+
 
 TEST you k-frame implementation with CNN only
 

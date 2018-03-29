@@ -18,6 +18,8 @@ discount_factor = 0.99
 epochs = 100
 learning_steps_per_epoch = 10000
 replay_memory_size = 100000
+test_memory_size = 1000
+
 
 # NN learning hyperparams
 batch_size = 64
@@ -32,7 +34,6 @@ resolution = (30, 45)
 frame_repeat = 10
 resolution = [30, 45]
 kframes = 4
-resolution[1] = resolution[1] * kframes
 episodes_to_watch = 10
 
 model_savefile = "models/model-dtc-fr{}-kf{}.pth".format(frame_repeat, kframes)
@@ -48,7 +49,7 @@ config_file_path = "../ViZDoom/scenarios/basic.cfg"
 
 def preprocess(img):
     """"""
-    img = skimage.transform.resize(img, [resolution[0], resolution[1] // kframes])
+    img = skimage.transform.resize(img, [resolution[0], resolution[1] ])
     img = img.astype(np.float32)
     return img
 
@@ -56,12 +57,17 @@ def preprocess(img):
 class ReplayMemory:
     def __init__(self, capacity):
         channels = 1
-        state_shape = (capacity, channels, resolution[0], resolution[1] // kframes)
+        state_shape = (capacity, channels, resolution[0], resolution[1])
+        test_state_shape = (test_memory_size, channels, resolution[0], resolution[1])
         self.s1 = np.zeros(state_shape, dtype=np.float32)
         self.s2 = np.zeros(state_shape, dtype=np.float32)
         self.a = np.zeros(capacity, dtype=np.int32)
         self.r = np.zeros(capacity, dtype=np.float32)
         self.isterminal = np.zeros(capacity, dtype=np.float32)
+
+        self.test_buffer = np.zeros(test_state_shape , dtype=np.float32)
+        self.test_buff_pos = 0
+        self.test_size = 0
 
         self.capacity = capacity
         self.size = 0
@@ -78,24 +84,36 @@ class ReplayMemory:
         self.pos = (self.pos + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
 
+
+    def add_to_test_buffer(self, curr_state):
+        self.test_buffer[self.test_buff_pos, 0, :, :] = curr_state
+        self.test_buff_pos = (self.test_buff_pos + 1) % self.capacity
+        self.test_size = min(self.test_size + 1, self.capacity)
+
+    def reset_test_buffer(self):
+        self.test_buffer = np.zeros_like(self.test_buffer, dtype=np.float32)
+        self.test_buff_pos = 0
+        self.test_size = 0
+
+    def get_test_sample(self):
+        #get sample of size kframes, or prepend zeros.
+        channels = 1
+        return_state_shape = (kframes, channels, resolution[0], resolution[1])
+        ret_buffer = None
+        if self.test_size >= kframes:
+            ret_buffer = self.test_buffer[self.test_size-kframes:self.test_buff_pos,:,:,:]
+        else:#only fill what we have, and have preceeding zero frames (which was already done)
+            ret_buffer = np.zeros(return_state_shape, dtype=np.float32)
+            ret_buffer[kframes-self.test_size:,:,:,:] = self.test_buffer[:self.test_buff_pos, :, :, :]
+        return ret_buffer
+
+
     def get_sample(self, sample_size):
-        i = sample(range(0, self.size), sample_size)
-        augmented_i = [list(range(j - kframes + 1, j + 1)) for j in i]
-        s1 = np.array([self.s1.take(i, mode='wrap', axis=0) for i in augmented_i])
-        s1 = np.moveaxis(s1, [0, 1, 2, 3, 4], [0, 3, 1, 2, 4])
-        reshape = s1.shape[0:3] + tuple([-1])
-        s1 = np.reshape(s1, reshape)
-
-        s2 = np.array([self.s2.take(i, mode='wrap', axis=0) for i in augmented_i])
-        s2 = np.moveaxis(s2, [0, 1, 2, 3, 4], [0, 3, 1, 2, 4])
-        reshape = s2.shape[0:3] + tuple([-1])
-        s2 = np.reshape(s2, reshape)
-        return s1, self.a[i], s2, self.isterminal[i], self.r[i]
-
-    def get_sample_lstm(self, sample_size):
         #need to check that (a) we are atleast sample size + k_frames - 1 in the current size = position + 1
         #then start at [pos +1 - sample_size - kframes + 1], and take every k frames.
         #todo add wrap around. We can get by with skipping some training cases. Whats 64 cases in 10k memory :-)
+
+
 
         if self.pos +1 >= sample_size + kframes - 1 :
             curr_idx = self.pos +1 - sample_size - kframes + 1
@@ -104,6 +122,7 @@ class ReplayMemory:
             samples_s2_container = []
             samples_isTerminal_container = []
             samples_reward_container= []
+
 
             for i in range(sample_size):
                 frame_indices = range(curr_idx, curr_idx+kframes)
@@ -150,7 +169,7 @@ def learn_from_memory(model):
     """ Use replay memory to learn. Ignore s2 if s1 is terminal """
 
     if memory.size > batch_size:
-        s1, a, s2, isterminal, r = memory.get_sample_lstm(batch_size)
+        s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)
@@ -176,14 +195,15 @@ class StateBuilder:
 
 
 def get_best_action(state):
-    #need to get the previous k-1 frames from the memory, and append the current state to it
-    q = model.predict(state, batch_size=1)
+    # query memory to get the k-frames
+    state_frames = memory.get_test_sample()
+    q = model.predict(state_frames, batch_size=1)
     m = np.argmax(q, axis=1)[0]
     action = m  # wrong
     return action
 
 
-def perform_learning_step(epoch, sb):
+def perform_learning_step(epoch):
     """ Makes an action according to eps-greedy policy, observes the result
     (next state, reward) and learns from the transition"""
 
@@ -204,6 +224,7 @@ def perform_learning_step(epoch, sb):
             return end_eps
 
     s1 = preprocess(game.get_state().screen_buffer)
+    memory.add_to_test_buffer(s1)
 
     # With probability eps make a random action.
     eps = exploration_rate(epoch)
@@ -211,9 +232,8 @@ def perform_learning_step(epoch, sb):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        s1 = s1.reshape([1, 1, resolution[0], resolution[1] // kframes])
-        state = sb.get_state(s1)
-        a = get_best_action(state)
+        s1 = s1.reshape([1, 1, resolution[0], resolution[1]])
+        a = get_best_action(s1 , add_to_memory=False)
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
@@ -280,17 +300,18 @@ if __name__ == '__main__':
             print("\nEpoch %d\n-------" % (epoch + 1))
             train_episodes_finished = 0
             train_scores = []
+            memory.reset_test_buffer()
 
             print("Training...")
             game.new_episode()
-            sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
             for learning_step in trange(learning_steps_per_epoch, leave=True):
-                perform_learning_step(epoch, sb)
+                perform_learning_step(epoch)
                 if game.is_episode_finished():
                     score = game.get_total_reward()
                     train_scores.append(score)
                     game.new_episode()
                     train_episodes_finished += 1
+                    memory.reset_test_buffer()
 
             print("%d training episodes played." % train_episodes_finished)
 
@@ -303,15 +324,13 @@ if __name__ == '__main__':
             test_episode = []
             test_scores = []
             for test_episode in trange(test_episodes_per_epoch, leave=False):
+                memory.reset_test_buffer()
+                #todo modify testing to feed all the states into the memory as well
                 game.new_episode()
-                sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
-                    frame = frame.reshape([1, 1, resolution[0], resolution[1] // kframes])
-                    state = sb.get_state(frame)
-
-                    best_action_index = get_best_action(state)
-
+                    frame = frame.reshape([1, 1, resolution[0], resolution[1]])
+                    best_action_index = get_best_action(frame)
                     game.make_action(actions[best_action_index], frame_repeat)
                 r = game.get_total_reward()
                 test_scores.append(r)
@@ -337,12 +356,11 @@ if __name__ == '__main__':
 
     for _ in range(episodes_to_watch):
         game.new_episode()
-        sb = StateBuilder((1, 1, resolution[0], resolution[1] // kframes), frames_per_state=kframes)
         while not game.is_episode_finished():
             frame = preprocess(game.get_state().screen_buffer)
-            frame = frame.reshape([1, 1, resolution[0], resolution[1] // kframes])
-            state = sb.get_state(frame)
-            best_action_index = get_best_action(state)
+            frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
+            memory.add_to_test_buffer(frame)
+            best_action_index = get_best_action(frame)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             game.set_action(actions[best_action_index])
