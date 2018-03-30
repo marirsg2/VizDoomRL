@@ -34,6 +34,7 @@ resolution = (30, 45)
 frame_repeat = 10
 resolution = [30, 45]
 kframes = 4
+channels = 1 #only b/w
 episodes_to_watch = 10
 
 model_savefile = "models/model-dtc-fr{}-kf{}.pth".format(frame_repeat, kframes)
@@ -46,6 +47,8 @@ skip_learning = False
 
 config_file_path = "../ViZDoom/scenarios/basic.cfg"
 
+import warnings
+warnings.filterwarnings("ignore")
 
 def preprocess(img):
     """"""
@@ -101,10 +104,10 @@ class ReplayMemory:
         return_state_shape = (kframes, channels, resolution[0], resolution[1])
         ret_buffer = None
         if self.test_size >= kframes:
-            ret_buffer = self.test_buffer[self.test_size-kframes:self.test_buff_pos,:,:,:]
+            ret_buffer = self.test_buffer[self.test_size-kframes:self.test_size,:,:,:]
         else:#only fill what we have, and have preceeding zero frames (which was already done)
             ret_buffer = np.zeros(return_state_shape, dtype=np.float32)
-            ret_buffer[kframes-self.test_size:,:,:,:] = self.test_buffer[:self.test_buff_pos, :, :, :]
+            ret_buffer[kframes-self.test_size:,:,:,:] = self.test_buffer[:self.test_size, :, :, :]
         return ret_buffer
 
 
@@ -113,18 +116,18 @@ class ReplayMemory:
         #then start at [pos +1 - sample_size - kframes + 1], and take every k frames.
         #todo add wrap around. We can get by with skipping some training cases. Whats 64 cases in 10k memory :-)
 
-
-
-        if self.pos +1 >= sample_size + kframes - 1 :
-            curr_idx = self.pos +1 - sample_size - kframes + 1
+        #todo, this is wrong and needs to be fixed
+        if self.size - kframes + 1 >= sample_size:
+            #note the self.pos is already 1 ahead of the last data entry
+            curr_idx = self.pos - sample_size - kframes + 1
+            #todo, handle looping. This could be negative. eg: -3. a simple trick. Just use NEGATIVE INDICES![-3:][0:POS]
             samples_kframes_container = []
             samples_action_container = []  # todo, this could be filled quickly with just a list of indices.all contiguous
             samples_s2_container = []
             samples_isTerminal_container = []
             samples_reward_container= []
 
-
-            for i in range(sample_size):
+            for i in range(sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
                 frame_indices = range(curr_idx, curr_idx+kframes)
                 samples_kframes_container.append(self.s1[frame_indices])
                 samples_action_container.append(self.a[curr_idx+kframes-1])
@@ -152,7 +155,7 @@ def create_model(available_actions_count):
 
     fc1 = TimeDistributed(Dense(128,activation='relu'))(flatten)
     fc2 = TimeDistributed(Dense(64, activation='relu'))(fc1)
-    lstm_layer = LSTM(4,return_sequences=True)(fc2)
+    lstm_layer = LSTM(4)(fc2) #IF return sequences is true, it becomes many to many lstm
     fc3 = Dense(128, activation='relu')(lstm_layer)
     fc4 = Dense(available_actions_count)(fc3)
 
@@ -168,7 +171,7 @@ def create_model(available_actions_count):
 def learn_from_memory(model):
     """ Use replay memory to learn. Ignore s2 if s1 is terminal """
 
-    if memory.size > batch_size:
+    if memory.size - kframes + 1 >= batch_size:
         s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
         q = model.predict(s2, batch_size=batch_size)
@@ -178,28 +181,14 @@ def learn_from_memory(model):
         model.fit(s1, target_q, verbose=0)
 
 
-class StateBuilder:
-    def __init__(self, frame_resolution, frames_per_state=1, axis=3):
-        self.pos = 0
-        self.size = frames_per_state
-        self.frames = np.zeros(
-            (frame_resolution[0], frame_resolution[1], frame_resolution[2], self.size, frame_resolution[3]))
-
-    def get_state(self, frame):
-        self.frames[:, :, :, self.pos, :] = frame
-        self.state = self.frames.reshape(*self.frames.shape[:-2],
-                                         -1)  # TODO: make sure order is the same as in training!
-        self.state = self.state.take(range(45 * (self.pos - self.size + 1), 45 * (self.pos + 1)), axis=3)
-        self.pos = (self.pos + 1) % self.size
-        return self.state
-
 
 def get_best_action(state):
     # query memory to get the k-frames
     state_frames = memory.get_test_sample()
+    state_frames = state_frames.reshape([1,kframes,channels,resolution[0],resolution[1]])
     q = model.predict(state_frames, batch_size=1)
     m = np.argmax(q, axis=1)[0]
-    action = m  # wrong
+    action = m
     return action
 
 
@@ -232,8 +221,8 @@ def perform_learning_step(epoch):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        s1 = s1.reshape([1, 1, resolution[0], resolution[1]])
-        a = get_best_action(s1 , add_to_memory=False)
+        #DONT add to test buffer, already done
+        a = get_best_action(s1 )
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
@@ -329,7 +318,7 @@ if __name__ == '__main__':
                 game.new_episode()
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
-                    frame = frame.reshape([1, 1, resolution[0], resolution[1]])
+                    memory.add_to_test_buffer(frame)
                     best_action_index = get_best_action(frame)
                     game.make_action(actions[best_action_index], frame_repeat)
                 r = game.get_total_reward()
@@ -358,7 +347,6 @@ if __name__ == '__main__':
         game.new_episode()
         while not game.is_episode_finished():
             frame = preprocess(game.get_state().screen_buffer)
-            frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
             memory.add_to_test_buffer(frame)
             best_action_index = get_best_action(frame)
 

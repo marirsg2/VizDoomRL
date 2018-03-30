@@ -14,16 +14,10 @@ learned about save weights, and save state
 NEEDED save state for lstm prediction
 
 
-NOOO...need to segment by isTerminal state information.
-Also when testing, prolly need separate memory container ?? YES ! needed.
-
-NOPE, SOLUTION: Get sample will pull out the right sample size with preceeding zero frames.
-When you want to get best action, simple insert the current state in the last position.
-ALSO ask for the sample in the recent past.
 
 
-
-TEST you k-frame implementation with CNN only
+get sample from memory needs looping support.
+FIRST) TEST you k-frame implementation with CNN only
 
 
 
