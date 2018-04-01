@@ -15,8 +15,8 @@ from tqdm import trange
 # Q-learning hyperparams
 learning_rate = 0.001
 discount_factor = 0.99
-epochs = 3
-learning_steps_per_epoch = 1000
+epochs = 10
+learning_steps_per_epoch = 10000
 replay_memory_size = 10000#was 10k
 test_memory_size = 1000
 
@@ -113,7 +113,6 @@ class ReplayMemory:
 
     def get_sample(self, sample_size):
 
-        #todo, this is wrong and needs to be fixed
         if self.size - kframes + 1 >= sample_size:
             #note the self.pos is already 1 ahead of the last data entry
             base_idx = self.pos - sample_size - kframes + 1
@@ -178,7 +177,7 @@ def learn_from_memory(model):
         q2 = np.max(q, axis=1)
         target_q = model.predict(s1, batch_size=batch_size)
         target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2#target_q.shape[0] = batch_size
-        model.fit(s1, target_q, verbose=0)
+        model.fit(s1, target_q, verbose=0,shuffle=False)
 
 
 

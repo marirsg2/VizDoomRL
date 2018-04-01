@@ -10,54 +10,20 @@ For SML paper analysis
 
 ==================================
 
-learned about save weights, and save state
-NEEDED save state for lstm prediction
+@why is kframe CNN only not working ? ensure that the data is being fed in properly
+NO SHUFFLE. Random sampling !! of the CNN frames . Size must be large enough to do this?
+
+I STILL think repeating data in the batches may not be a good idea.feed in batch units, and don't repeat.
+OR randomly sample 4 sequential frames for the CNN
+
+@test the improved time distribution on the visual model. EVEN THIS, is probably missing some parts.
+
+@apply the improved time distribution to the old stateful model as well !! review the memory management in that part.
+
+
+Try batch size == 1. if you set it to be 64, then you update weights for the first 64 steps. Could cover 2 episodes.
+REMOVE shuffle == false ?
 
 
 
 
-Test your looping support in get_sample (using the negative to positive numbers looping trick)
-dO  a breakpoint for when your size = capacity and pos = 2.
-
-FIRST) TEST you k-frame implementation with CNN only (1 channel to 4 channel/frames)
-
-
-
-@2) THE ONLY benefit of lstm is that a DIFFERENT CNN is applied to each time step, and then converged into the lstm.
-JUST test this version too. see if lstm works at all. That way you can make peace.
-TAKE ANDY's k-frames, and use that as the time parameter !! remove batch size and stateful
-
-?? if the stateful is removed, do I need to remember the state? nope.
-
-
-#TODO CHECK STACKOVERFLOW FOR THE ANSWER
-
-LOOK AT THE TERMINAL OUTPUT, what do you see.
-
-higher discount is better !! so we connect move and shoot, rather than just shoot.
-OR vice versa, LOWER discount, so rotate and shoot is not a behavior.
-
-1.5) HAve one epoch to just calculate the average image. Subtract from the successive images and feed that as
-the information. MAYBE do one better. NORMALIZE the image, and see what you get.
-
-auto enc is useless. the CNN does that.
-OR DOES IT!! andy worried that retraining causes weights to drop.
-
-
-
-2) TEST your expectation on the lstm learning code where you know the correct output and it works.
-
-
-
-Then try autoencoder
-
-
-LATER ALTERNATIVE: learning time distributed. and lstm pains.
-IT maybe better to just batch train the lstm. store as episodes.
-    look up examples. Modify code to store full episodes before training.
-    seems like you need time distributed module
-    review if the look_Back parameter is needed.
-
-
-Do the lstm save state anywhere else you do predict before fit.
-Double check the reset state cases
