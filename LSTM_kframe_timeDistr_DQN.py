@@ -112,22 +112,20 @@ class ReplayMemory:
 
 
     def get_sample(self, sample_size):
-        #need to check that (a) we are atleast sample size + k_frames - 1 in the current size = position + 1
-        #then start at [pos +1 - sample_size - kframes + 1], and take every k frames.
-        #todo add wrap around. We can get by with skipping some training cases. Whats 64 cases in 10k memory :-)
 
         #todo, this is wrong and needs to be fixed
         if self.size - kframes + 1 >= sample_size:
             #note the self.pos is already 1 ahead of the last data entry
             curr_idx = self.pos - sample_size - kframes + 1
-            #todo, handle looping. This could be negative. eg: -3. a simple trick. Just use NEGATIVE INDICES![-3:][0:POS]
+            #todo, WELL THIS IS DONE. index could be -ve eg: -3. a simple trick. Just allow NEGATIVE INDICES! already auto done
+            #if you do a[range(-3,5)] then you get an array of values at indices -3->-1, and 0->5
             samples_kframes_container = []
             samples_action_container = []  # todo, this could be filled quickly with just a list of indices.all contiguous
             samples_s2_container = []
             samples_isTerminal_container = []
             samples_reward_container= []
-
             for i in range(sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
+                curr_idx = curr_idx + i #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
                 frame_indices = range(curr_idx, curr_idx+kframes)
                 samples_kframes_container.append(self.s1[frame_indices])
                 samples_action_container.append(self.a[curr_idx+kframes-1])
@@ -173,6 +171,8 @@ def learn_from_memory(model):
 
     if memory.size - kframes + 1 >= batch_size:
         s1, a, s2, isterminal, r = memory.get_sample(batch_size)
+        if s1==None:
+            return
 
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)

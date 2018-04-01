@@ -16,8 +16,8 @@ NEEDED save state for lstm prediction
 
 
 
-get sample from memory needs looping support.
-FIRST) TEST you k-frame implementation with CNN only
+Test your looping support in get_sample (using the negative to positive numbers looping trick)
+FIRST) TEST you k-frame implementation with CNN only (1 channel to 4 channel/frames)
 
 
 
