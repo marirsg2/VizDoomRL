@@ -15,9 +15,9 @@ from tqdm import trange
 # Q-learning hyperparams
 learning_rate = 0.001
 discount_factor = 0.99
-epochs = 100
-learning_steps_per_epoch = 10000
-replay_memory_size = 100000
+epochs = 3
+learning_steps_per_epoch = 1000
+replay_memory_size = 10000#was 10k
 test_memory_size = 1000
 
 
@@ -116,7 +116,7 @@ class ReplayMemory:
         #todo, this is wrong and needs to be fixed
         if self.size - kframes + 1 >= sample_size:
             #note the self.pos is already 1 ahead of the last data entry
-            curr_idx = self.pos - sample_size - kframes + 1
+            base_idx = self.pos - sample_size - kframes + 1
             #todo, WELL THIS IS DONE. index could be -ve eg: -3. a simple trick. Just allow NEGATIVE INDICES! already auto done
             #if you do a[range(-3,5)] then you get an array of values at indices -3->-1, and 0->5
             samples_kframes_container = []
@@ -125,7 +125,7 @@ class ReplayMemory:
             samples_isTerminal_container = []
             samples_reward_container= []
             for i in range(sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
-                curr_idx = curr_idx + i #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
+                curr_idx = base_idx + i #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
                 frame_indices = range(curr_idx, curr_idx+kframes)
                 samples_kframes_container.append(self.s1[frame_indices])
                 samples_action_container.append(self.a[curr_idx+kframes-1])
@@ -177,7 +177,7 @@ def learn_from_memory(model):
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)
         target_q = model.predict(s1, batch_size=batch_size)
-        target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2
+        target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1 - isterminal) * q2#target_q.shape[0] = batch_size
         model.fit(s1, target_q, verbose=0)
 
 
@@ -213,7 +213,7 @@ def perform_learning_step(epoch):
             return end_eps
 
     s1 = preprocess(game.get_state().screen_buffer)
-    memory.add_to_test_buffer(s1)
+    memory.add_to_test_buffer(s1)#we dont add s2 , the next iteration of this loop does that!!
 
     # With probability eps make a random action.
     eps = exploration_rate(epoch)
@@ -230,6 +230,7 @@ def perform_learning_step(epoch):
 
     # Remember the transition that was just experienced.
     memory.add_transition(s1, a, s2, isterminal, reward)
+    # IMPORTANT we dont add s2 TO THE TEST BUFFER, the next iteration of this loop does that!!
 
     learn_from_memory(model)
 

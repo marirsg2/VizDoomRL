@@ -17,6 +17,8 @@ NEEDED save state for lstm prediction
 
 
 Test your looping support in get_sample (using the negative to positive numbers looping trick)
+dO  a breakpoint for when your size = capacity and pos = 2.
+
 FIRST) TEST you k-frame implementation with CNN only (1 channel to 4 channel/frames)
 
 
