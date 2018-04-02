@@ -16,7 +16,7 @@ from tqdm import trange
 learning_rate = 0.001
 discount_factor = 0.99
 epochs = 10
-learning_steps_per_epoch = 1000
+learning_steps_per_epoch = 2000
 replay_memory_size = 10000
 
 # NN learning hyperparams
@@ -35,7 +35,7 @@ kframes = 1
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_basic_myMem.pth"
+model_savefile = "models/model_andy_basic_sandbox.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -58,7 +58,8 @@ def preprocess(img):
 
 class ReplayMemory:
     def __init__(self, capacity):
-        state_shape = (capacity, resolution[0], resolution[1] )
+        channels = 1
+        state_shape = (capacity, channels, resolution[0], resolution[1] )
         self.s1 = np.zeros(state_shape, dtype=np.float32)
         self.s2 = np.zeros(state_shape, dtype=np.float32)
         self.a = np.zeros(capacity, dtype=np.int32)
@@ -70,10 +71,10 @@ class ReplayMemory:
         self.pos = 0
 
     def add_transition(self, s1, action, s2, isterminal, reward):
-        self.s1[self.pos, :, :] = s1
+        self.s1[self.pos, 0, :, :] = s1
         self.a[self.pos] = action
         if not isterminal:
-            self.s2[self.pos, :, :] = s2
+            self.s2[self.pos, 0, :, :] = s2
         self.isterminal[self.pos] = isterminal
         self.r[self.pos] = reward
 
@@ -81,28 +82,22 @@ class ReplayMemory:
         self.size = min(self.size + 1, self.capacity)
 
     def get_sample(self, sample_size):
+        i = sample(range(0, self.size), sample_size)
+        augmented_i = [list(range(j - kframes + 1, j + 1)) for j in i]
+        s1 = np.array([self.s1.take(i, mode='wrap', axis=0) for i in augmented_i])
+        s1 = np.moveaxis(s1, [0, 1, 2, 3, 4], [0, 3, 1, 2, 4])
+        reshape = s1.shape[0:3] + tuple([-1])
+        s1 = np.reshape(s1, reshape)
 
-
-        samples_kframes_container = []
-        samples_action_container = []
-        samples_s2_container = []
-        samples_isTerminal_container = []
-        samples_reward_container= []
-        for i in sample(range(0, self.size), sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
-            frame_indices = range(i-kframes+1, i+1)#+1 so that the last data point is considered too.
-            #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
-            samples_kframes_container.append(self.s1[frame_indices])
-            samples_action_container.append(self.a[i])
-            samples_s2_container.append(self.s2[frame_indices])
-            samples_isTerminal_container.append(self.isterminal[i])
-            samples_reward_container.append(self.r[i])
-
-        return np.array(samples_kframes_container),np.array(samples_action_container), \
-               np.array(samples_s2_container),np.array(samples_isTerminal_container),np.array(samples_reward_container)
+        s2 = np.array([self.s2.take(i, mode='wrap', axis=0) for i in augmented_i])
+        s2 = np.moveaxis(s2, [0, 1, 2, 3, 4], [0, 3, 1, 2, 4])
+        reshape = s2.shape[0:3] + tuple([-1])
+        s2 = np.reshape(s2, reshape)
+        return s1, self.a[i], s2, self.isterminal[i], self.r[i]
 
 
 def create_model(available_actions_count):
-    state_input = Input(shape=(kframes, resolution[0], resolution[1]))
+    state_input = Input(shape=(1, resolution[0], resolution[1]))
     conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
         state_input)  # filters, kernal_size, stride
     conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
@@ -182,8 +177,8 @@ def perform_learning_step(epoch):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        mod_shape = s1.reshape([1, 1, resolution[0], resolution[1] ])
-        a = get_best_action(mod_shape)
+        s1 = s1.reshape([1, 1, resolution[0], resolution[1] ])
+        a = get_best_action(s1)
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
@@ -271,8 +266,9 @@ if __name__ == '__main__':
                 game.new_episode()
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
-                    frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
-                    best_action_index = get_best_action(frame)
+                    state = frame.reshape([1, 1, resolution[0], resolution[1] ])
+
+                    best_action_index = get_best_action(state)
 
                     game.make_action(actions[best_action_index], frame_repeat)
                 r = game.get_total_reward()
@@ -301,8 +297,8 @@ if __name__ == '__main__':
         game.new_episode()
         while not game.is_episode_finished():
             frame = preprocess(game.get_state().screen_buffer)
-            frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
-            best_action_index = get_best_action(frame)
+            state = frame.reshape([1, 1, resolution[0], resolution[1] ])
+            best_action_index = get_best_action(state)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             game.set_action(actions[best_action_index])

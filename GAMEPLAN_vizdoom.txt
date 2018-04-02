@@ -16,6 +16,11 @@ For SML paper analysis
 
 A[i] -> A[i-1]  , because the image frames were only between  i-frames to i, which is frames BEFORE index i.
 So you took the action after it. limited connection.
+EXPLAINS why the lstm did NOTHING.
+
+Why is //kframes making a huge difference
+
+
 
 
 
