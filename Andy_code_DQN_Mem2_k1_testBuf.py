@@ -143,6 +143,20 @@ def create_model(available_actions_count):
     model.compile(loss="mse", optimizer=adam)
     print(model.summary())
 
+    # state_input = Input(shape=(1, resolution[0], resolution[1]))
+    # k_model = Sequential()
+    # k_model.add(Conv2D(filters=8,kernel_size=6, strides=3, activation='relu',\
+    #                    input_shape= (1, resolution[0], resolution[1]),data_format="channels_first"))
+    # k_model.add(Conv2D(filters=8,kernel_size=3, strides=2, activation='relu'))
+    # k_model.add(Flatten())
+    #
+    # k_model.add(Dense(128, input_shape=(192,), activation='relu'))
+    # k_model.add(Dense(available_actions_count,activation='relu'))
+    # adam = Adam(lr=0.001)
+    # k_model.compile(optimizer=adam, loss='mse')
+    # k_model.summary()
+
+
     return state_input, model
 
 
@@ -196,7 +210,7 @@ def perform_learning_step(epoch):
         # Choose the best action according to the network.
         memory.add_to_test_buffer(s1)
         state_kframes = memory.get_test_sample()
-        state_kframes = state_kframes.reshape([1,kframes,resolution[0],resolution[1]])# 1 is the batch size
+        state_kframes = state_kframes.reshape([1,kframes,resolution[0],resolution[1]])
         a = get_best_action(state_kframes)
     reward = game.make_action(actions[a], frame_repeat)
 
