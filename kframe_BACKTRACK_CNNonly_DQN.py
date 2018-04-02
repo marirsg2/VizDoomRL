@@ -76,10 +76,10 @@ class ReplayMemory:
         self.pos = 0
 
     def add_transition(self, s1, action, s2, isterminal, reward):
-        self.s1[self.pos, :, :] = s1
+        self.s1[self.pos,0, :, :] = s1
         self.a[self.pos] = action
         if not isterminal:
-            self.s2[self.pos, :, :] = s2
+            self.s2[self.pos,0, :, :] = s2
         self.isterminal[self.pos] = isterminal
         self.r[self.pos] = reward
 
@@ -130,9 +130,10 @@ class ReplayMemory:
                 samples_s2_container.append(self.s2[frame_indices])
                 samples_isTerminal_container.append(self.isterminal[curr_idx+kframes-1])
                 samples_reward_container.append(self.r[curr_idx+kframes-1])
-
             return np.array(samples_kframes_container),np.array(samples_action_container), \
                    np.array(samples_s2_container),np.array(samples_isTerminal_container),np.array(samples_reward_container)
+        else:
+            return None, None, None,None,None #laieeek...literalyeeee....none...Omg.
         #--end outer if
 
 

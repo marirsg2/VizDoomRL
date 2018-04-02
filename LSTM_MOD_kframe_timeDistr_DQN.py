@@ -13,8 +13,8 @@ import skimage.color, skimage.transform
 from tqdm import trange
 
 # Q-learning hyperparams
-learning_rate = 0.001
-discount_factor = 0.99
+learning_rate = 0.003
+discount_factor = 0.7 #0.99 was showing improvement till epoch 8 - 170+64
 epochs = 10
 learning_steps_per_epoch = 1000
 replay_memory_size = 10000#was 10k
@@ -37,7 +37,8 @@ kframes = 4
 channels = 1 #only b/w
 episodes_to_watch = 10
 
-model_savefile = "models/model-dtc-fr{}-kf{}.pth".format(frame_repeat, kframes)
+# model_savefile = "models/model-dtc-fr{}-kf{}.pth".format(frame_repeat, kframes)
+model_savefile = "models/model-dtc-fr{}-kf{}-dsc{}.pth".format(frame_repeat, kframes,discount_factor)
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -159,7 +160,7 @@ def create_model(available_actions_count):
     state_input = Input((kframes, 1, resolution[0], resolution[1]))
     td_layer = TimeDistributed(visual_model )(state_input)
 
-    lstm_layer = LSTM(64)(td_layer) #IF return sequences is true, it becomes many to many lstm
+    lstm_layer = LSTM(16)(td_layer) #IF return sequences is true, it becomes many to many lstm
     fc3 = Dense(128, activation='relu')(lstm_layer)
     fc4 = Dense(available_actions_count)(fc3)
 

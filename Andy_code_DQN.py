@@ -13,7 +13,7 @@ import skimage.color, skimage.transform
 from tqdm import trange
 
 # Q-learning hyperparams
-learning_rate = 0.00025
+learning_rate = 0.001
 discount_factor = 0.99
 epochs = 10
 learning_steps_per_epoch = 2000
@@ -35,7 +35,7 @@ kframes = 1
 resolution[1] = resolution[1] * kframes
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_dfc.pth"
+model_savefile = "models/model_andy_basic.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -43,7 +43,7 @@ save_model = True
 load_model = False
 skip_learning = False
 
-config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
+config_file_path = "../ViZDoom/scenarios/basic.cfg"
 
 
 import warnings
@@ -107,7 +107,7 @@ def create_model(available_actions_count):
     fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
 
     model = keras.models.Model(input=state_input, output=fc2)
-    adam = Adam(lr=0.001)
+    adam = Adam(lr= learning_rate)
     model.compile(loss="mse", optimizer=adam)
     print(model.summary())
 

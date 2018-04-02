@@ -10,6 +10,23 @@ For SML paper analysis
 
 ==================================
 
+
+
+
+
+A[i] -> A[i-1]  , because the image frames were only between  i-frames to i, which is frames BEFORE index i.
+So you took the action after it. limited connection.
+
+
+
+
+Instead of TEST BUFFER, for k-frames, we just add the current state to the prev 3 s1-states
+DO THIS WITH k=1 first. Then see how performance changes for 2 frames, 3 frames and such.
+
+
+
+Maybe the state space is not being properly captured, perhaps an autoencoder !! Is there a default autoencoder module? like resnet
+
 @why is kframe CNN only not working ? ensure that the data is being fed in properly
 NO SHUFFLE. Random sampling !! of the CNN frames . Size must be large enough to do this?
 
