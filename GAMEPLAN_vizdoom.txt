@@ -13,18 +13,7 @@ For SML paper analysis
 
 
 
-
-A[i] -> A[i-1]  , because the image frames were only between  i-frames to i, which is frames BEFORE index i.
-So you took the action after it. limited connection.
-EXPLAINS why the lstm did NOTHING.
-
-Why is //kframes making a huge difference
-
-
-
-
-
-
+NEXT:
 Instead of TEST BUFFER, for k-frames, we just add the current state to the prev 3 s1-states
 DO THIS WITH k=1 first. Then see how performance changes for 2 frames, 3 frames and such.
 

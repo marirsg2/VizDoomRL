@@ -35,7 +35,7 @@ kframes = 1
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_basic_myMem.pth"
+model_savefile = "models/model_andy_basic_myMem3.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -81,8 +81,6 @@ class ReplayMemory:
         self.size = min(self.size + 1, self.capacity)
 
     def get_sample(self, sample_size):
-
-
         samples_kframes_container = []
         samples_action_container = []
         samples_s2_container = []
@@ -146,7 +144,6 @@ def learn_from_memory(model):
         model.fit(s1, target_q, verbose=0)
 
 
-
 def get_best_action(state):
     q = model.predict(state, batch_size=1)
     m = np.argmax(q, axis=1)[0]
@@ -182,8 +179,8 @@ def perform_learning_step(epoch):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        mod_shape = s1.reshape([1, 1, resolution[0], resolution[1] ])
-        a = get_best_action(mod_shape)
+        s1 = s1.reshape([1, 1, resolution[0], resolution[1] ])
+        a = get_best_action(s1)
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
@@ -272,6 +269,7 @@ if __name__ == '__main__':
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
                     frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
+
                     best_action_index = get_best_action(frame)
 
                     game.make_action(actions[best_action_index], frame_repeat)
