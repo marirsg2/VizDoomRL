@@ -9,27 +9,51 @@ For SML paper analysis
 
 2) Talk about the importance of variance in tracking progress. Because some cases give very high value (monster in middle)
 so the average can be misleading. Also training variance is a bad estimate because of the epsilon (exploration rate)
+The min is a good indicator for learning too.
 
+3) Talk about adding frames and frame rate influence.
 
+4) Snapping to -300 easily, and then only sometimes recovering. (fr6, k=4, lr 0.00025). Too low learning rate.
+or it goes to "center shooting"
 
+5) It seems in general, the problem is GOOD samples dont occur enough, without enough exploration. The larger frame rate
+allows us to COVER more space and thus can get GOOD rewards propagated faster !!
+Test: vary frame rate. At the frame rate when you get weak but still useful performance, see how tuning the discount factor
+probably makes it worse !! A good 2-D graph
+
+5.5) Hmmm... zero frames padding seems to be working better.
+
+6) RELATED to 5, a weak learning rate makes it harder to "snap to" and hold onto the learned GOOD scenario.
+ADAM maybe good, if it changes MORE for a significantly deviant sample, as good scenarios will be held onto well.
+
+7) If we fed a reward that was radial distance from the monster, that would help ?
+
+8) HA ! the network actually uses the image at the bottom to decide whats happening in DFC, i.e. am I being hit and
+turns to attack.
 
 ==================================
 
 
-NEXT: in k1_test buff SLIGHT MOD TO.
-BETTER TO REPEAT THE FIRST FRAME RATHER THAN ZEROS !!
 
 DOUBLE CHECK if your exploration rate is set right.
 
-VARY FRAME rate for larger frame searching
+@ see the zero frames correction performance. try k=2, currently k=4
 
-is s2 = none in terminal case gonna be a problem ?? in fitting?
+hmm... seems like the zero frames is helping. So repeating is hurting. Which kinda makes sense.
+So LSTM feeding one at a time should be the best. Time distributed maybe the middle best.
 
 
 
 
-I wonder if the additional frames really makes a difference. The actions are what is really important. IMAGINE
-if you moved left, right, left, (random exploration), doesnt really mater for basic
+@try it in repeatFrames  I THINK for more frames to be useful, it needs to have a lower frame repeat ??
+@ try it in dfc
+
+Still need to do LSTM  (1) Time Distributed. (just change the model, and either (a) store with channel 1 , or reshape to channel 1)
+                        (2) Stateful
+
+LATER: Autoencoder.
+
+Hell, we can make a paper out of this. Atleast for Arxiv.
 
 ==========================================================
 Maybe the state space is not being properly captured, perhaps an autoencoder !! Is there a default autoencoder module? like resnet

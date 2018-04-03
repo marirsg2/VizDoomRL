@@ -1,0 +1,16 @@
+
+
+1)
+FRAME Repeat  = 10
+001,fr = 1,10k steps ; 0.005 1,10k ; 0.001 ,
+  both learned to circle and shoot. Ask andy for settings when it learned to save bullets.
+
+2)
+FRAME Repeat  = 10
+001,fr = 2,10k steps
+  This learned to stay and shoot slowly, then when hurt will turn and shoot the offender. Also any others nearby.
+  decent performance, still bad
+
+2)
+FRAME Repeat  = 10
+001,fr = 4,10k steps

@@ -14,29 +14,32 @@ from tqdm import trange
 
 # Q-learning hyperparams
 learning_rate = 0.001
-discount_factor = 0.99
+discount_factor = 1.0
 epochs = 10
-learning_steps_per_epoch = 1000
+learning_steps_per_epoch = 10000
 replay_memory_size = 10000
-test_memory_size = 1000
+test_memory_size = 10000
 
 # NN learning hyperparams
 batch_size = 64
 
 # Training regime
-test_episodes_per_epoch = 100
+test_episodes_per_epoch = 1000
 
 # Image params
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 12
+frame_repeat = 10
 resolution = [30, 45]
-kframes = 2
+kframes = 4
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_basic_myMem_k2_repeatFrames.pth"
+
+
+#MODIFY this to use the format() function to auto take in the fr , lr and kF
+model_savefile = "models/DFC_kFr_lr001_fr10_k4_10kSteps_10epoch.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -44,7 +47,7 @@ save_model = True
 load_model = False
 skip_learning = False
 
-config_file_path = "../ViZDoom/scenarios/basic.cfg"
+config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
 
 
 import warnings
@@ -215,6 +218,7 @@ def perform_learning_step(epoch):
                    (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
         else:
             return end_eps
+    #--end sub function to get exploration rate
 
     s1 = preprocess(game.get_state().screen_buffer)
 

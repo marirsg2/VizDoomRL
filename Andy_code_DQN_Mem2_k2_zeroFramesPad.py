@@ -16,7 +16,7 @@ from tqdm import trange
 learning_rate = 0.001
 discount_factor = 0.99
 epochs = 10
-learning_steps_per_epoch = 1000
+learning_steps_per_epoch = 10000
 replay_memory_size = 10000
 test_memory_size = 10000
 
@@ -30,13 +30,13 @@ test_episodes_per_epoch = 100
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 14
+frame_repeat = 10
 resolution = [30, 45]
-kframes = 2
+kframes = 4
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_basic_myMem_k2_zeroFramePads_fr2.pth"
+model_savefile = "models/DFC_kFr_zeroPad_lr001_fr10_k4_10kSteps_10epoch.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -44,7 +44,7 @@ save_model = True
 load_model = False
 skip_learning = False
 
-config_file_path = "../ViZDoom/scenarios/basic.cfg"
+config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
 
 
 import warnings
@@ -96,13 +96,30 @@ class ReplayMemory:
             frame_indices = range(i-kframes+1, i+1)#+1 so that the last data point is considered too.
             #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
 
-            #todo, this will be bad training.
+            #todo, this will be bad training. Need zero padding. mimic the test buffer
 
             s1_data = self.s1[frame_indices]
             action_data = self.a[i]
             s2_data = self.s2[frame_indices]
             isTerminal_data = self.isterminal[i]
             reward_data = self.r[i]
+
+            #IF we have a terminal frame in the PRECEEDING k-frames then we DO NOT take those frames. Rather we
+            # #repeat the frame after it
+            terminal_offset = 0 #not possible case as you will see
+            if True in self.isterminal[range(i-kframes+1, i)]: #dont care if the last one is terminal
+                for k in range(1,kframes):#excludes the last index
+                    if self.isterminal[i-k] : terminal_offset = k
+            #--end outer if
+            if terminal_offset != 0: #then we need to repeat some frames
+                #0:-offset  = -offset repeated as many times
+                num_repeats = kframes - terminal_offset
+                tmp_reshaped = np.zeros([1] + list(s1_data[-terminal_offset].shape))  # add a leading dummy dimension
+                repeat_frames = np.tile(tmp_reshaped, [num_repeats] + [1] * len(resolution))
+                s1_data[0:-terminal_offset] = repeat_frames
+                s2_data[0:-terminal_offset] = repeat_frames
+                #however, the s2 preceeding frame would be s1, so that can be added
+                s2_data[-terminal_offset-1] = s1_data[-terminal_offset]
 
             samples_s1_container.append(s1_data)
             samples_action_container.append(action_data)
@@ -186,6 +203,7 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
+        return 0.1
         start_eps = 1.0
         end_eps = 0.1
         const_eps_epochs = 0.1 * epochs  # 10% of learning time
