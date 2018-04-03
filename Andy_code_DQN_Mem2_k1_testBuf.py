@@ -16,7 +16,7 @@ from tqdm import trange
 learning_rate = 0.001
 discount_factor = 0.99
 epochs = 10
-learning_steps_per_epoch = 1000
+learning_steps_per_epoch = 100
 replay_memory_size = 10000
 test_memory_size = 1000
 
@@ -124,6 +124,10 @@ class ReplayMemory:
         else:#only fill what we have, and have preceeding zero frames (which was already done)
             ret_buffer = np.zeros(return_state_shape, dtype=np.float32)
             ret_buffer[kframes-self.test_size:,:,:] = self.test_buffer[:self.test_size, :, :]
+            num_repeats = kframes-self.test_size
+            tmp_reshaped = self.test_buffer[0].reshape([1]+list(self.test_buffer[0].shape))#add a leading dummy dimension
+            repeat_frames = np.tile(tmp_reshaped,[num_repeats]+self.test_buffer[0].shape,axis=0)
+            ret_buffer[:kframes-self.test_size,:,:] = repeat_frames
         return ret_buffer
 
 
@@ -340,7 +344,8 @@ if __name__ == '__main__':
             frame = preprocess(game.get_state().screen_buffer)
             memory.add_to_test_buffer(frame)
             state_kframes = memory.get_test_sample()
-            best_action_index = get_best_action(frame)
+            state_kframes = state_kframes.reshape([1, kframes, resolution[0], resolution[1]])  # 1 is the batch size
+            best_action_index = get_best_action(state_kframes)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             game.set_action(actions[best_action_index])

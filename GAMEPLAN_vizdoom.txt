@@ -3,7 +3,12 @@
 
 For SML paper analysis
 
+0) Separate code into memory model, and your part to be clear to teacher about what parts were taken.
+
 1) Vary Epsilon, and exploration time AGAINST the number of actions (8 vs 3) and see how long the optimal policy takes
+
+2) Talk about the importance of variance in tracking progress. Because some cases give very high value (monster in middle)
+so the average can be misleading. Also training variance is a bad estimate because of the epsilon (exploration rate)
 
 
 
@@ -11,13 +16,22 @@ For SML paper analysis
 ==================================
 
 
+NEXT: in k1_test buff SLIGHT MOD TO.
+BETTER TO REPEAT THE FIRST FRAME RATHER THAN ZEROS !!
+
+DOUBLE CHECK if your exploration rate is set right.
+
+VARY FRAME rate for larger frame searching
+
+is s2 = none in terminal case gonna be a problem ?? in fitting?
 
 
-NEXT:
-TEST buffer with kframes =1 in file k2 mods
 
 
+I wonder if the additional frames really makes a difference. The actions are what is really important. IMAGINE
+if you moved left, right, left, (random exploration), doesnt really mater for basic
 
+==========================================================
 Maybe the state space is not being properly captured, perhaps an autoencoder !! Is there a default autoencoder module? like resnet
 
 @why is kframe CNN only not working ? ensure that the data is being fed in properly

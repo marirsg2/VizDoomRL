@@ -18,6 +18,7 @@ discount_factor = 0.99
 epochs = 10
 learning_steps_per_epoch = 1000
 replay_memory_size = 10000
+test_memory_size = 10000
 
 # NN learning hyperparams
 batch_size = 64
@@ -29,13 +30,13 @@ test_episodes_per_epoch = 100
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 12
+frame_repeat = 14
 resolution = [30, 45]
-kframes = 1
+kframes = 2
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/model_andy_basic_myMem3.pth"
+model_savefile = "models/model_andy_basic_myMem_k2_zeroFramePads_fr2.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -59,11 +60,16 @@ def preprocess(img):
 class ReplayMemory:
     def __init__(self, capacity):
         state_shape = (capacity, resolution[0], resolution[1] )
+        test_state_shape = (test_memory_size, resolution[0], resolution[1])
         self.s1 = np.zeros(state_shape, dtype=np.float32)
         self.s2 = np.zeros(state_shape, dtype=np.float32)
         self.a = np.zeros(capacity, dtype=np.int32)
         self.r = np.zeros(capacity, dtype=np.float32)
         self.isterminal = np.zeros(capacity, dtype=np.float32)
+
+        self.test_buffer = np.zeros(test_state_shape, dtype=np.float32)
+        self.test_buff_pos = 0
+        self.test_size = 0
 
         self.capacity = capacity
         self.size = 0
@@ -81,7 +87,7 @@ class ReplayMemory:
         self.size = min(self.size + 1, self.capacity)
 
     def get_sample(self, sample_size):
-        samples_kframes_container = []
+        samples_s1_container = []
         samples_action_container = []
         samples_s2_container = []
         samples_isTerminal_container = []
@@ -89,14 +95,50 @@ class ReplayMemory:
         for i in sample(range(0, self.size), sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
             frame_indices = range(i-kframes+1, i+1)#+1 so that the last data point is considered too.
             #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
-            samples_kframes_container.append(self.s1[frame_indices])
-            samples_action_container.append(self.a[i])
-            samples_s2_container.append(self.s2[frame_indices])
-            samples_isTerminal_container.append(self.isterminal[i])
-            samples_reward_container.append(self.r[i])
 
-        return np.array(samples_kframes_container),np.array(samples_action_container), \
+            #todo, this will be bad training.
+
+            s1_data = self.s1[frame_indices]
+            action_data = self.a[i]
+            s2_data = self.s2[frame_indices]
+            isTerminal_data = self.isterminal[i]
+            reward_data = self.r[i]
+
+            samples_s1_container.append(s1_data)
+            samples_action_container.append(action_data)
+            samples_s2_container.append(s2_data)
+            samples_isTerminal_container.append(isTerminal_data)
+            samples_reward_container.append(reward_data)
+
+        return np.array(samples_s1_container),np.array(samples_action_container), \
                np.array(samples_s2_container),np.array(samples_isTerminal_container),np.array(samples_reward_container)
+
+
+    def add_to_test_buffer(self, curr_state):
+        self.test_buffer[self.test_buff_pos, :, :] = curr_state
+        self.test_buff_pos = (self.test_buff_pos + 1) % self.capacity
+        self.test_size = min(self.test_size + 1, self.capacity)
+
+    def reset_test_buffer(self):
+        self.test_buffer = np.zeros_like(self.test_buffer, dtype=np.float32)
+        self.test_buff_pos = 0
+        self.test_size = 0
+
+    def get_test_sample(self):
+        #get sample of size kframes, or prepend zeros.
+        return_state_shape = (kframes, resolution[0], resolution[1])
+        ret_buffer = None
+        if self.test_size >= kframes:
+            ret_buffer = self.test_buffer[self.test_size-kframes:self.test_size,:,:]
+        else:#only fill what we have, and have preceeding zero frames (which was already done)
+            ret_buffer = np.zeros(return_state_shape, dtype=np.float32)
+            ret_buffer[kframes-self.test_size:,:,:] = self.test_buffer[:self.test_size, :, :]
+            # num_repeats = kframes-self.test_size
+            # tmp_reshaped = self.test_buffer[0].reshape([1]+list(self.test_buffer[0].shape))#add a leading dummy dimension
+            # repeat_frames = np.tile(tmp_reshaped,[num_repeats]+[1]*len(resolution) )
+            # ret_buffer[:kframes-self.test_size,:,:] = repeat_frames
+        return ret_buffer
+
 
 
 def create_model(available_actions_count):
@@ -113,19 +155,6 @@ def create_model(available_actions_count):
     adam = Adam(lr= learning_rate)
     model.compile(loss="mse", optimizer=adam)
     print(model.summary())
-
-    # state_input = Input(shape=(1, resolution[0], resolution[1]))
-    # k_model = Sequential()
-    # k_model.add(Conv2D(filters=8,kernel_size=6, strides=3, activation='relu',\
-    #                    input_shape= (1, resolution[0], resolution[1]),data_format="channels_first"))
-    # k_model.add(Conv2D(filters=8,kernel_size=3, strides=2, activation='relu'))
-    # k_model.add(Flatten())
-    #
-    # k_model.add(Dense(128, input_shape=(192,), activation='relu'))
-    # k_model.add(Dense(available_actions_count,activation='relu'))
-    # adam = Adam(lr=0.001)
-    # k_model.compile(optimizer=adam, loss='mse')
-    # k_model.summary()
 
 
     return state_input, model
@@ -179,11 +208,16 @@ def perform_learning_step(epoch):
         a = randint(0, len(actions) - 1)
     else:
         # Choose the best action according to the network.
-        s1 = s1.reshape([1, 1, resolution[0], resolution[1] ])
-        a = get_best_action(s1)
+        memory.add_to_test_buffer(s1)
+        state_kframes = memory.get_test_sample()
+        state_kframes = state_kframes.reshape([1,kframes,resolution[0],resolution[1]])
+        a = get_best_action(state_kframes)
     reward = game.make_action(actions[a], frame_repeat)
 
     isterminal = game.is_episode_finished()
+    #todo RESET the test buffer ELSEWHERE. not here
+
+
     s2 = preprocess(game.get_state().screen_buffer) if not isterminal else None
 
     # Remember the transition that was just experienced.
@@ -246,9 +280,11 @@ if __name__ == '__main__':
 
             print("Training...")
             game.new_episode()
+            memory.reset_test_buffer()
             for learning_step in trange(learning_steps_per_epoch, leave=True):
                 perform_learning_step(epoch)
                 if game.is_episode_finished():
+                    memory.reset_test_buffer()
                     score = game.get_total_reward()
                     train_scores.append(score)
                     game.new_episode()
@@ -266,16 +302,19 @@ if __name__ == '__main__':
             test_scores = []
             for test_episode in trange(test_episodes_per_epoch, leave=False):
                 game.new_episode()
+                memory.reset_test_buffer()
                 while not game.is_episode_finished():
                     frame = preprocess(game.get_state().screen_buffer)
-                    frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
-
-                    best_action_index = get_best_action(frame)
+                    memory.add_to_test_buffer(frame)
+                    state_kframes = memory.get_test_sample()
+                    state_kframes = state_kframes.reshape([1, kframes, resolution[0], resolution[1]])
+                    best_action_index = get_best_action(state_kframes)
 
                     game.make_action(actions[best_action_index], frame_repeat)
                 r = game.get_total_reward()
                 test_scores.append(r)
-
+                #--end while
+            #--end for
             test_scores = np.array(test_scores)
             print("Results: mean: %.1f +/- %.1f," % (
                 test_scores.mean(), test_scores.std()), "min: %.1f" % test_scores.min(),
@@ -299,8 +338,10 @@ if __name__ == '__main__':
         game.new_episode()
         while not game.is_episode_finished():
             frame = preprocess(game.get_state().screen_buffer)
-            frame = frame.reshape([1, 1, resolution[0], resolution[1] ])
-            best_action_index = get_best_action(frame)
+            memory.add_to_test_buffer(frame)
+            state_kframes = memory.get_test_sample()
+            state_kframes = state_kframes.reshape([1, kframes, resolution[0], resolution[1]])  # 1 is the batch size
+            best_action_index = get_best_action(state_kframes)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             game.set_action(actions[best_action_index])

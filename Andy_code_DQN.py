@@ -40,7 +40,7 @@ if not os.path.exists('models'):
     os.makedirs('models')
 
 save_model = True
-load_model = False
+load_model = True
 skip_learning = False
 
 config_file_path = "../ViZDoom/scenarios/basic.cfg"
@@ -170,19 +170,21 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
-        start_eps = 1.0
-        end_eps = 0.1
-        const_eps_epochs = 0.1 * epochs  # 10% of learning time
-        eps_decay_epochs = 0.6 * epochs  # 60% of learning time
-
-        if epoch < const_eps_epochs:
-            return start_eps
-        elif epoch < eps_decay_epochs:
-            # Linear decay
-            return start_eps - (epoch - const_eps_epochs) / \
-                   (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
-        else:
-            return end_eps
+        return 0.1
+        #
+        # start_eps = 1.0
+        # end_eps = 0.1
+        # const_eps_epochs = 0.1 * epochs  # 10% of learning time
+        # eps_decay_epochs = 0.6 * epochs  # 60% of learning time
+        #
+        # if epoch < const_eps_epochs:
+        #     return start_eps
+        # elif epoch < eps_decay_epochs:
+        #     # Linear decay
+        #     return start_eps - (epoch - const_eps_epochs) / \
+        #            (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
+        # else:
+        #     return end_eps
 
     s1 = preprocess(game.get_state().screen_buffer)
 
