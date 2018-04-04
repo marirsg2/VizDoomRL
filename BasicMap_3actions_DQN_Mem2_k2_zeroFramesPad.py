@@ -14,9 +14,9 @@ from tqdm import trange
 
 # Q-learning hyperparams
 learning_rate = 0.001
-discount_factor = 0.99
+discount_factor = 1.0
 epochs = 10
-learning_steps_per_epoch = 10000
+learning_steps_per_epoch = 1000
 replay_memory_size = 10000
 test_memory_size = 10000
 
@@ -32,11 +32,11 @@ resolution = (30, 45)
 # Other parameters
 frame_repeat = 10
 resolution = [30, 45]
-kframes = 4
+kframes = 2
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/DFC_kFr_zeroPad_lr001_fr10_k4_10kSteps_10epoch.pth"
+model_savefile = "models/Basic_kFr_zeroPad_lr001_fr10_k2_3actions.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -44,7 +44,7 @@ save_model = True
 load_model = False
 skip_learning = False
 
-config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
+config_file_path = "../ViZDoom/scenarios/basic.cfg"
 
 
 import warnings
@@ -159,12 +159,14 @@ class ReplayMemory:
 
 
 def create_model(available_actions_count):
+    
+
     state_input = Input(shape=(kframes, resolution[0], resolution[1]))
     conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
         state_input)  # filters, kernal_size, stride
     conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
         conv1)  # filters, kernal_size, stride
-    flatten = Flatten()(conv2)
+    flatten = Flatten()(conv1)
     fc1 = Dense(128, activation='relu')(flatten)
     fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
 
@@ -203,7 +205,6 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
-        return 0.1
         start_eps = 1.0
         end_eps = 0.1
         const_eps_epochs = 0.1 * epochs  # 10% of learning time
@@ -277,6 +278,8 @@ if __name__ == '__main__':
     # Action = which buttons are pressed
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
+    actions = [[0,0,1],[0,1,0],[1,0,0]]
+
 
     # Create replay memory which will store the transitions
     memory = ReplayMemory(capacity=replay_memory_size)
@@ -371,4 +374,3 @@ if __name__ == '__main__':
         score = game.get_total_reward()
         print("Total score: ", score)
 
-state_input, model = create_model(8)

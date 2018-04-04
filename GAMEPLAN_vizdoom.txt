@@ -7,11 +7,13 @@ For SML paper analysis
 
 1) Vary Epsilon, and exploration time AGAINST the number of actions (8 vs 3) and see how long the optimal policy takes
 
-2) Talk about the importance of variance in tracking progress. Because some cases give very high value (monster in middle)
-so the average can be misleading. Also training variance is a bad estimate because of the epsilon (exploration rate)
-The min is a good indicator for learning too.
+2) Fewer actions (3) and 1 convolution layer works better, trains faster.
+    3 actions works better because we do not get unfairly rewarded for shooting and moving. in DFC this is more so the
+    case since monsters MAY spawn when rotating.
+    1 conv layer is all we need.
 
-3) Talk about adding frames and frame rate influence.
+3) Frame rate helps explore the state space here. It also makes fine tuned actions harded. There is a sweet spot around 10
+
 
 4) Snapping to -300 easily, and then only sometimes recovering. (fr6, k=4, lr 0.00025). Too low learning rate.
 or it goes to "center shooting"
@@ -21,7 +23,10 @@ allows us to COVER more space and thus can get GOOD rewards propagated faster !!
 Test: vary frame rate. At the frame rate when you get weak but still useful performance, see how tuning the discount factor
 probably makes it worse !! A good 2-D graph
 
-5.5) Hmmm... zero frames padding seems to be working better.
+5.5) Hmmm... zero frames padding seems to be working better. but even that does do low frame repeats
+hmm... seems like the zero frames is helping. So repeating is hurting. Which kinda makes sense.
+So LSTM feeding one at a time should be the best. Time distributed maybe the middle best.
+
 
 6) RELATED to 5, a weak learning rate makes it harder to "snap to" and hold onto the learned GOOD scenario.
 ADAM maybe good, if it changes MORE for a significantly deviant sample, as good scenarios will be held onto well.
@@ -31,18 +36,26 @@ ADAM maybe good, if it changes MORE for a significantly deviant sample, as good 
 8) HA ! the network actually uses the image at the bottom to decide whats happening in DFC, i.e. am I being hit and
 turns to attack.
 
+9) Sensitive to monster turning and which direction it does. More exploration steps covers such cases.
+
+10) 3 actions is MUCH faster to learn. Obviously, the network is not spread thin.
+        And previously, it was using a shoot action to TURN !! wasteful.
+        AND we could do it with one fewer Convolution layer. (Ablation study)
+        One fewer conv layer trains faster and works just as well.
+            Makes sense. One filter for monster, one for human position. then maybe one for bullets and such.
+
+11) Adding an extra dense NN layer of size 64, made the training slower (as expected) and performance worse.
 ==================================
 
 
 
 DOUBLE CHECK if your exploration rate is set right.
 
-@ see the zero frames correction performance. try k=2, currently k=4
-
-hmm... seems like the zero frames is helping. So repeating is hurting. Which kinda makes sense.
-So LSTM feeding one at a time should be the best. Time distributed maybe the middle best.
+Try frame rate of 8 or 9
+With smaller NN, and frame rate of 10. See how k=2, 4,6 affects the DFC performance.
 
 
+Reward shaping. Show the power of giving the right signal. in basic and DFC. Scott, Josh, Ben
 
 
 @try it in repeatFrames  I THINK for more frames to be useful, it needs to have a lower frame repeat ??

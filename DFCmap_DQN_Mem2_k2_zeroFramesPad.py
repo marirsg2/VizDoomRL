@@ -24,22 +24,19 @@ test_memory_size = 10000
 batch_size = 64
 
 # Training regime
-test_episodes_per_epoch = 1000
+test_episodes_per_epoch = 100
 
 # Image params
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 4
+frame_repeat = 10
 resolution = [30, 45]
-kframes = 4
+kframes = 2
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-
-
-#MODIFY this to use the format() function to auto take in the fr , lr and kF
-model_savefile = "models/DFC_kFr_lr001_fr4_k4_10kSteps_10epoch.pth"
+model_savefile = "models/DFC_3ACTION_smallerNN_lr001_fr10_k2_10kSteps_10epoch.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -99,6 +96,8 @@ class ReplayMemory:
             frame_indices = range(i-kframes+1, i+1)#+1 so that the last data point is considered too.
             #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
 
+            #todo, this will be bad training. Need zero padding. mimic the test buffer
+
             s1_data = self.s1[frame_indices]
             action_data = self.a[i]
             s2_data = self.s2[frame_indices]
@@ -115,13 +114,12 @@ class ReplayMemory:
             if terminal_offset != 0: #then we need to repeat some frames
                 #0:-offset  = -offset repeated as many times
                 num_repeats = kframes - terminal_offset
-                tmp_reshaped = s1_data[-terminal_offset].reshape([1] +
-                                        list(s1_data[-terminal_offset].shape))  # add a leading dummy dimension
+                tmp_reshaped = np.zeros([1] + list(s1_data[-terminal_offset].shape))  # add a leading dummy dimension
                 repeat_frames = np.tile(tmp_reshaped, [num_repeats] + [1] * len(resolution))
                 s1_data[0:-terminal_offset] = repeat_frames
-                #now do the same for s2, it actually gets S1 ! repeated. makes sense. the previous frame for s2 would have been s1, and
-                #then we have no more data so repeat s1
                 s2_data[0:-terminal_offset] = repeat_frames
+                #however, the s2 preceeding frame would be s1, so that can be added
+                s2_data[-terminal_offset-1] = s1_data[-terminal_offset]
 
             samples_s1_container.append(s1_data)
             samples_action_container.append(action_data)
@@ -152,21 +150,23 @@ class ReplayMemory:
         else:#only fill what we have, and have preceeding zero frames (which was already done)
             ret_buffer = np.zeros(return_state_shape, dtype=np.float32)
             ret_buffer[kframes-self.test_size:,:,:] = self.test_buffer[:self.test_size, :, :]
-            num_repeats = kframes-self.test_size
-            tmp_reshaped = self.test_buffer[0].reshape([1]+list(self.test_buffer[0].shape))#add a leading dummy dimension
-            repeat_frames = np.tile(tmp_reshaped,[num_repeats]+[1]*len(resolution) )
-            ret_buffer[:kframes-self.test_size,:,:] = repeat_frames
+            # num_repeats = kframes-self.test_size
+            # tmp_reshaped = self.test_buffer[0].reshape([1]+list(self.test_buffer[0].shape))#add a leading dummy dimension
+            # repeat_frames = np.tile(tmp_reshaped,[num_repeats]+[1]*len(resolution) )
+            # ret_buffer[:kframes-self.test_size,:,:] = repeat_frames
         return ret_buffer
 
 
 
 def create_model(available_actions_count):
+
+
     state_input = Input(shape=(kframes, resolution[0], resolution[1]))
     conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
         state_input)  # filters, kernal_size, stride
-    conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
-        conv1)  # filters, kernal_size, stride
-    flatten = Flatten()(conv2)
+    # conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
+    #     conv1)  # filters, kernal_size, stride
+    flatten = Flatten()(conv1)
     fc1 = Dense(128, activation='relu')(flatten)
     fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
 
@@ -205,6 +205,9 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
+
+        # return 0.1
+
         start_eps = 1.0
         end_eps = 0.1
         const_eps_epochs = 0.1 * epochs  # 10% of learning time
@@ -218,7 +221,6 @@ def perform_learning_step(epoch):
                    (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
         else:
             return end_eps
-    #--end sub function to get exploration rate
 
     s1 = preprocess(game.get_state().screen_buffer)
 
@@ -279,6 +281,7 @@ if __name__ == '__main__':
     # Action = which buttons are pressed
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
+    actions = [[0, 0, 1], [0, 1, 0], [1, 0, 0]]
 
     # Create replay memory which will store the transitions
     memory = ReplayMemory(capacity=replay_memory_size)
@@ -373,4 +376,3 @@ if __name__ == '__main__':
         score = game.get_total_reward()
         print("Total score: ", score)
 
-state_input, model = create_model(8)
