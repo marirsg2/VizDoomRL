@@ -45,46 +45,55 @@ turns to attack.
             Makes sense. One filter for monster, one for human position. then maybe one for bullets and such.
 
 11) Adding an extra dense NN layer of size 64, made the training slower (as expected) and performance worse.
+
+12) In LSTM, kframes = 1 with time distributed does not work. Makes sense
+
+
+13) Smaller LR to avoid stuck at local optimum. Maybe larger batch size too.
+
+14) Smaller frame rate (<6 sucks in Basic, but seems ok in DFC ??)NOT ENOUGH evidence. fr6 seems to work best in dfc too.
+
 ==================================
+BASIC results LSTM
+BEST: Basic_LSTM_smaller_k2_1k_20ep_lr0006 with zero frames , seems to work best
+Basic_LSTM_smaller__fr6_k2_1k_20_ep_lr0006 - Does BETTER? too, with fr6!! which regular does not ?
+
+DFC results LSTM
+TOP: (2) DFC_LSTM_smaller_fr10_k2_1k_20_ep_lr0003
+(1) DFC_LSTM_smaller_fr6_k3_1k_20_ep_lr0003 - BETTER
 
 
+
+==================================
 
 DOUBLE CHECK if your exploration rate is set right.
 
-Try frame rate of 8 or 9
-With smaller NN, and frame rate of 10. See how k=2, 4,6 affects the DFC performance.
+NO! do NOT need to add action. The network should predict the value ACROSS actions !!
 
+SHOULD BE EASIER than you think
+1) Have a training network and a target network. the weights and states ARE CONNECTED.
+!!! IMPORTANT 1.5) DO NOT save full episodes, JUST run the target network through the states s2 as needed
+2) Update the training network based on the target network
 
-Reward shaping. Show the power of giving the right signal. in basic and DFC. Scott, Josh, Ben
-
-
-@try it in repeatFrames  I THINK for more frames to be useful, it needs to have a lower frame repeat ??
-@ try it in dfc
-
-Still need to do LSTM  (1) Time Distributed. (just change the model, and either (a) store with channel 1 , or reshape to channel 1)
-                        (2) Stateful
-
-LATER: Autoencoder.
-
-Hell, we can make a paper out of this. Atleast for Arxiv.
 
 ==========================================================
+
+
+Tensor flow GPU version.
+
+IF ITS SO SENSITIVE TO MONSTER TURNING, weaken the network.
+LEARNING RATE of 0.006 seems to work best ??
+
+
+LATER: Autoencoder.
+Hell, we can make a paper out of all these cases. Atleast for Arxiv. Atleast for Andy's thesis.
+Dense, CNN, CNN + kframes, CNN + LSTM (time distributed), CNN + LSTM (continuous), Autoencoder + Dense/LSTM+Dense.
+
+==========================================================
+
 Maybe the state space is not being properly captured, perhaps an autoencoder !! Is there a default autoencoder module? like resnet
 
-@why is kframe CNN only not working ? ensure that the data is being fed in properly
-NO SHUFFLE. Random sampling !! of the CNN frames . Size must be large enough to do this?
-
-I STILL think repeating data in the batches may not be a good idea.feed in batch units, and don't repeat.
-OR randomly sample 4 sequential frames for the CNN
-
-@test the improved time distribution on the visual model. EVEN THIS, is probably missing some parts.
-
-@apply the improved time distribution to the old stateful model as well !! review the memory management in that part.
-
-
-Try batch size == 1. if you set it to be 64, then you update weights for the first 64 steps. Could cover 2 episodes.
-REMOVE shuffle == false ?
-
+==========================================================
 
 
 

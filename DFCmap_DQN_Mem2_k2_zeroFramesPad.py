@@ -16,7 +16,7 @@ from tqdm import trange
 learning_rate = 0.001
 discount_factor = 1.0
 epochs = 10
-learning_steps_per_epoch = 10000
+learning_steps_per_epoch = 100
 replay_memory_size = 10000
 test_memory_size = 10000
 
@@ -32,17 +32,17 @@ resolution = (30, 45)
 # Other parameters
 frame_repeat = 10
 resolution = [30, 45]
-kframes = 2
+kframes = 4
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/DFC_3ACTION_smallerNN_lr001_fr10_k2_10kSteps_10epoch.pth"
+model_savefile = "models/lessGr8_DFC_3ACTION_smallNN_fr10_k4_10k_10ep.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
 save_model = True
-load_model = False
-skip_learning = False
+load_model = True
+skip_learning = True
 
 config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
 

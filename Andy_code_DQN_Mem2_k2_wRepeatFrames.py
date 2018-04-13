@@ -30,7 +30,7 @@ test_episodes_per_epoch = 1000
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 4
+frame_repeat = 10
 resolution = [30, 45]
 kframes = 4
 resolution[1] = resolution[1]
@@ -39,7 +39,7 @@ episodes_to_watch = 10
 
 
 #MODIFY this to use the format() function to auto take in the fr , lr and kF
-model_savefile = "models/DFC_kFr_lr001_fr4_k4_10kSteps_10epoch.pth"
+model_savefile = "models/DFC_kFr_lr001_fr10_k4_10kSteps_10epoch.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 

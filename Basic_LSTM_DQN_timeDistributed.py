@@ -6,17 +6,17 @@ from random import sample, randint, random
 import random
 from time import time, sleep
 from keras.models import Sequential, Model, load_model as lm
-from keras.layers import Dense, Activation, Conv2D, Input, Flatten
-from keras.optimizers import Adam
+from keras.layers import Dense, Activation, Conv2D, Input, Flatten, LSTM,TimeDistributed
+from keras.optimizers import Adam, RMSprop
 import numpy as np
 import skimage.color, skimage.transform
 from tqdm import trange
 
 # Q-learning hyperparams
-learning_rate = 0.001
+learning_rate = 0.0001
 discount_factor = 1.0
-epochs = 10
-learning_steps_per_epoch = 10000
+epochs = 20
+learning_steps_per_epoch = 1000
 replay_memory_size = 10000
 test_memory_size = 10000
 
@@ -24,19 +24,18 @@ test_memory_size = 10000
 batch_size = 64
 
 # Training regime
-test_episodes_per_epoch = 10
+test_episodes_per_epoch = 100
 
 # Image params
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 10
+frame_repeat = 4
 resolution = [30, 45]
-kframes = 4
-resolution[1] = resolution[1]
+kframes = 3
 episodes_to_watch = 10
 
-model_savefile = "models/Basic__largerDenseNN_lr001_fr10_k4_10kSteps_10epoch.pth"
+model_savefile = "models/Basic_LSTM_smaller_fr4_k3_1k_20ep_lr0001_btc96.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
@@ -95,6 +94,8 @@ class ReplayMemory:
         for i in sample(range(0, self.size), sample_size):#sample size is not kframes, but could be 32 or 64 (batch size)
             frame_indices = range(i-kframes+1, i+1)#+1 so that the last data point is considered too.
             #this will wrap around with negative numbers, so -2, -1,0,1,2 :-)
+
+            #todo, this will be bad training. Need zero padding. mimic the test buffer
 
             s1_data = self.s1[frame_indices]
             action_data = self.a[i]
@@ -157,22 +158,29 @@ class ReplayMemory:
 
 
 def create_model(available_actions_count):
-    
 
-    state_input = Input(shape=(kframes, resolution[0], resolution[1]))
-    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
-        state_input)  # filters, kernal_size, stride
-    conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
-        conv1)  # filters, kernal_size, stride
-    flatten = Flatten()(conv2)
-    fc1 = Dense(128, activation='relu')(flatten)
-    fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
+    visual_state_input = Input((1,resolution[0], resolution[1]))
+    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(visual_state_input)
 
-    model = keras.models.Model(input=state_input, output=fc2)
-    adam = Adam(lr= learning_rate)
-    model.compile(loss="mse", optimizer=adam)
+    # conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
+    #     conv1)  # filters, kernal_size, stride
+
+    flatten = Flatten()(conv1)
+    fc1 = Dense(128,activation='relu')(flatten)
+    fc2 = Dense(64, activation='relu')(fc1)
+    visual_model = keras.models.Model(input=visual_state_input, output=fc2)
+
+    state_input = Input((kframes, 1, resolution[0], resolution[1]))
+    td_layer = TimeDistributed(visual_model )(state_input)
+
+    lstm_layer = LSTM(64)(td_layer) #IF return sequences is true, it becomes many to many lstm
+    fc3 = Dense(32, activation='relu')(lstm_layer)
+    fc4 = Dense(available_actions_count)(fc3)
+
+    model = keras.models.Model(input=state_input, output=fc4)
+    das_optimizer= RMSprop(lr= learning_rate)
+    model.compile(loss="mse", optimizer=das_optimizer)
     print(model.summary())
-
 
     return state_input, model
 
@@ -183,6 +191,9 @@ def learn_from_memory(model):
     if memory.size > batch_size:
         s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
+        s1 = s1.reshape(list(s1.shape[0:2]) + [1] + list(resolution)) #converting to [ batch*kframes*1channel*width*height ]
+        s2 = s2.reshape(list(s2.shape[0:2]) + [1] + list(resolution)) #converting to [ batch*kframes*1channel*width*height ]
+
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)
         target_q = model.predict(s1, batch_size=batch_size)
@@ -191,6 +202,11 @@ def learn_from_memory(model):
 
 
 def get_best_action(state):
+    '''
+    :param state:
+    :return:
+    '''
+    state = state.reshape(list(state.shape[0:2]) + [1] + list(resolution))  # converting to [ batch*kframes*1channel*width*height ]
     q = model.predict(state, batch_size=1)
     m = np.argmax(q, axis=1)[0]
     action = m  # wrong
@@ -203,6 +219,9 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
+
+        # return 0.1
+
         start_eps = 1.0
         end_eps = 0.1
         const_eps_epochs = 0.1 * epochs  # 10% of learning time
@@ -276,6 +295,7 @@ if __name__ == '__main__':
     # Action = which buttons are pressed
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
+    actions = [[0, 0, 1], [0, 1, 0], [1, 0, 0]]
 
     # Create replay memory which will store the transitions
     memory = ReplayMemory(capacity=replay_memory_size)
@@ -370,4 +390,3 @@ if __name__ == '__main__':
         score = game.get_total_reward()
         print("Total score: ", score)
 
-state_input, model = create_model(8)

@@ -36,7 +36,7 @@ kframes = 2
 resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/DFC_3ACTION_smallerNN_lr001_fr10_k2_10kSteps_10epoch.pth"
+model_savefile = "models/GREAT_DFC_3ACTION_smallerNN_lr001_fr10_k2_10kSteps_10epoch.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 

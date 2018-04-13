@@ -143,8 +143,6 @@ class ReplayMemory:
 
 def create_model(available_actions_count):
 
-    #todo, need a separate visual model , that is packed into the time distributed model.
-    #the visual model has a different state input. Google some examples, dont even need to compile it.
 
     visual_state_input = Input((1,resolution[0], resolution[1]))
     conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(visual_state_input)
