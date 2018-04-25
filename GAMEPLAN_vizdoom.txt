@@ -53,6 +53,21 @@ turns to attack.
 
 14) Smaller frame rate (<6 sucks in Basic, but seems ok in DFC ??)NOT ENOUGH evidence. fr6 seems to work best in dfc too.
 
+15) Especially in LSTM model, it can get stuck in stand and shoot. If low k-frames, then need many steps to explore other options.
+Lucky rewards make it more likely to continue that. ? WHy? is no feature processing being done ? what happens to the network ?
+Is the reward drop too SHARP that trying anything else is not worth it ? Better to stand and SHOOT in every situation.
+
+16) IS IT data scaling ?? min max scaler on the rewards may help. for DTC, will it avoid the dying network ??
+
+17) A.E. based controller ?
+
+18) Have 3 SEPARATE networks for 3 actions !!. I think the drops will be less. The optimal policy will be used in the succeeding states. Assumption holds
+
+19) Does constant epsilon (exploration) have less variation.
+
+20) WHAT is the reward scale !! the loss function is MSE, but the values could be huge !! what about scaling the values !!
+the max score is 26. So divide by 26.
+
 ==================================
 BASIC results LSTM
 BEST: Basic_LSTM_smaller_k2_1k_20ep_lr0006 with zero frames , seems to work best
@@ -68,10 +83,17 @@ TOP: (2) DFC_LSTM_smaller_fr10_k2_1k_20_ep_lr0003
 
 DOUBLE CHECK if your exploration rate is set right.
 
-NO! do NOT need to add action. The network should predict the value ACROSS actions !!
+
+SEE results of DFC, basic inf for smaller and larger NN architecutres.
+
+RESCALE THE REWARD !! killing monster is +1000, -ve is scaled down by 10.
+
+ABLATION study
+
+Dropout and monster invariance.
 
 SHOULD BE EASIER than you think
-1) Have a training network and a target network. the weights and states ARE CONNECTED.
+1) Have a training network and a target network. (cannot use one lstm) the weights and states ARE CONNECTED.
 !!! IMPORTANT 1.5) DO NOT save full episodes, JUST run the target network through the states s2 as needed
 2) Update the training network based on the target network
 

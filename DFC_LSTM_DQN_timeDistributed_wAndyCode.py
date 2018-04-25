@@ -2,6 +2,7 @@ from vizdoom import *
 import os
 import itertools as it
 import keras
+import json
 from random import sample, randint, random
 import random
 from time import time, sleep
@@ -15,7 +16,7 @@ from tqdm import trange
 # Q-learning hyperparams
 learning_rate = 0.0006
 discount_factor = 1.0
-epochs = 20
+epochs = 200
 learning_steps_per_epoch = 10000
 replay_memory_size = 10000
 test_memory_size = 10000
@@ -30,18 +31,28 @@ test_episodes_per_epoch = 100
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 6
+frame_repeat = 3
 resolution = [30, 45]
 kframes = 3
 episodes_to_watch = 10
 
-model_savefile = "models/retry_DFC_LSTM64_smaller_fr6_k3_10k_20_ep_lr0006.pth"
+
+# @See if it ever recovers ?? try continue training with exporation rate 0.3 or something. IT would be interesting to
+#     compare recovery rate. And put this in future work. Deeper models take longer to recover.
+
+model_savefile = "models/DFC_LSTM64_smaller_fr3_k3_10k_200_ep_lr0006_disc0_explLIN.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
 save_model = True
 load_model = False
 skip_learning = False
+
+if not os.path.exists('models'):
+    os.makedirs('models')
+
+if not os.path.exists('data'):
+    os.makedirs('data')
 
 config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
 
@@ -279,13 +290,25 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', '--kframes', type=int)
-    parser.add_argument('-t', '--test')
+    parser.add_argument('-t', '--test', action='store_true', default=None)
+    parser.add_argument('-r', '--frame_repeat', type=int)
+    parser.add_argument('-m', '--model', default=None)
     args, extras = parser.parse_known_args()
     if args.kframes:
         kframes = args.kframes
     if args.test:
         load_model = True
         skip_learning = True
+    if args.frame_repeat:
+        frame_repeat = args.frame_repeat
+    if args.model and load_model:
+        # model_savefile = "models/{}".format(args.model)
+        model_datafile = "data/{}".format(args.model)
+    else:
+        # model_savefile = "models/model-dtc-fr{}-kf{}-long.pth".format(frame_repeat, kframes)
+        model_datafile = "data/model-dtc-fr{}-kf{}-long.pth".format(frame_repeat, kframes)
+
+    print(("Testing" if skip_learning else "Training"), 'KFrames:', kframes, 'Frame Repeat:', frame_repeat)
 
     # Create Doom instance
     game = initialize_vizdoom(config_file_path)
@@ -294,6 +317,14 @@ if __name__ == '__main__':
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
     actions = [[0, 0, 1], [0, 1, 0], [1, 0, 0]]
+
+    if args.model and load_model:
+        model_savefile = "models/{}".format(args.model)
+        model_datafile = "data/{}".format(args.model)
+    else:
+        model_savefile = "models/model-dtc-fr{}-kf{}-act{}.pth".format(frame_repeat, kframes, len(actions))
+        model_datafile = "data/model-dtc-fr{}-kf{}-act{}.pth".format(frame_repeat, kframes, len(actions))
+
 
     # Create replay memory which will store the transitions
     memory = ReplayMemory(capacity=replay_memory_size)
@@ -308,6 +339,9 @@ if __name__ == '__main__':
     print("Starting the training!")
     time_start = time()
     if not skip_learning:
+        mean_score_list = []
+        std_score_list = []
+        learning_steps_list = []
         for epoch in range(epochs):
             print("\nEpoch %d\n-------" % (epoch + 1))
             train_episodes_finished = 0
@@ -351,12 +385,19 @@ if __name__ == '__main__':
                 #--end while
             #--end for
             test_scores = np.array(test_scores)
+            mean_score_list.append(test_scores.mean())
+            std_score_list.append(test_scores.std())
+            learning_steps_list.append(
+                learning_steps_list[-1] + learning_steps_per_epoch if learning_steps_list else learning_steps_per_epoch)
             print("Results: mean: %.1f +/- %.1f," % (
                 test_scores.mean(), test_scores.std()), "min: %.1f" % test_scores.min(),
                   "max: %.1f" % test_scores.max())
 
             print("Saving the network weigths to:", model_savefile)
             model.save(model_savefile)
+            with open(model_datafile, 'w+') as f:
+                data = {'means': mean_score_list, 'stds': std_score_list, 'learning_steps': learning_steps_list}
+                json.dump(data, f)
 
             print("Total elapsed time: %.2f minutes" % ((time() - time_start) / 60.0))
 

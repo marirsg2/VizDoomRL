@@ -3,7 +3,13 @@ from random import shuffle
 
 a = np.array([1,2,3,4,5,6,7,8,9])
 
-print(a[0:-0])
+a = [1,2,3,4,5,6]
+b = [1,2,3,4,5,6]
+
+c = [x+y for(x,y) in zip(a,b)]
+print (c)
+
+# print(a[0:-0])
 #
 # a = np.array([[1,2],[3,4]])
 # b = np.tile(a,(2,1))

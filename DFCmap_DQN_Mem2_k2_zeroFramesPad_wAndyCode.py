@@ -6,17 +6,17 @@ from random import sample, randint, random
 import random
 from time import time, sleep
 from keras.models import Sequential, Model, load_model as lm
-from keras.layers import Dense, Activation, Conv2D, Input, Flatten, LSTM,TimeDistributed
-from keras.optimizers import Adam, RMSprop
+from keras.layers import Dense, Activation, Conv2D, Input, Flatten
+from keras.optimizers import Adam
 import numpy as np
 import skimage.color, skimage.transform
 from tqdm import trange
 
 # Q-learning hyperparams
-learning_rate = 0.0006
+learning_rate = 0.001
 discount_factor = 1.0
-epochs = 20
-learning_steps_per_epoch = 10000
+epochs = 200
+learning_steps_per_epoch = 100
 replay_memory_size = 10000
 test_memory_size = 10000
 
@@ -24,24 +24,31 @@ test_memory_size = 10000
 batch_size = 64
 
 # Training regime
-test_episodes_per_epoch = 100
+test_episodes_per_epoch = 10
 
 # Image params
 resolution = (30, 45)
 
 # Other parameters
-frame_repeat = 6
+frame_repeat = 3
 resolution = [30, 45]
 kframes = 3
+resolution[1] = resolution[1]
 episodes_to_watch = 10
 
-model_savefile = "models/retry_DFC_LSTM64_smaller_fr6_k3_10k_20_ep_lr0006.pth"
+model_savefile = "models/3ACTION_fr3_k3_10k_200ep.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
 
 save_model = True
 load_model = False
 skip_learning = False
+
+if not os.path.exists('models'):
+    os.makedirs('models')
+
+if not os.path.exists('data'):
+    os.makedirs('data')
 
 config_file_path = "../ViZDoom/scenarios/defend_the_center.cfg"
 
@@ -159,27 +166,19 @@ class ReplayMemory:
 
 def create_model(available_actions_count):
 
-    visual_state_input = Input((1,resolution[0], resolution[1]))
-    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(visual_state_input)
-          # filters, kernal_size, stride
+
+    state_input = Input(shape=(kframes, resolution[0], resolution[1]))
+    conv1 = Conv2D(8, 6, strides=3, activation='relu', data_format="channels_first")(
+        state_input)  # filters, kernal_size, stride
     # conv2 = Conv2D(8, 3, strides=2, activation='relu', data_format="channels_first")(
     #     conv1)  # filters, kernal_size, stride
-
     flatten = Flatten()(conv1)
-    fc1 = Dense(128,activation='relu')(flatten)
-    fc2 = Dense(64, activation='relu')(fc1)
-    visual_model = keras.models.Model(input=visual_state_input, output=fc2)
+    fc1 = Dense(128, activation='relu')(flatten)
+    fc2 = Dense(available_actions_count, input_shape=(128,))(fc1)
 
-    state_input = Input((kframes, 1, resolution[0], resolution[1]))
-    td_layer = TimeDistributed(visual_model )(state_input)
-
-    lstm_layer = LSTM(64)(td_layer) #IF return sequences is true, it becomes many to many lstm
-    fc3 = Dense(32, activation='relu')(lstm_layer)
-    fc4 = Dense(available_actions_count)(fc3)
-
-    model = keras.models.Model(input=state_input, output=fc4)
-    das_optimizer= RMSprop(lr= learning_rate)
-    model.compile(loss="mse", optimizer=das_optimizer)
+    model = keras.models.Model(input=state_input, output=fc2)
+    adam = Adam(lr= learning_rate)
+    model.compile(loss="mse", optimizer=adam)
     print(model.summary())
 
     return state_input, model
@@ -191,9 +190,6 @@ def learn_from_memory(model):
     if memory.size > batch_size:
         s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
-        s1 = s1.reshape(list(s1.shape[0:2]) + [1] + list(resolution)) #converting to [ batch*kframes*1channel*width*height ]
-        s2 = s2.reshape(list(s2.shape[0:2]) + [1] + list(resolution)) #converting to [ batch*kframes*1channel*width*height ]
-
         q = model.predict(s2, batch_size=batch_size)
         q2 = np.max(q, axis=1)
         target_q = model.predict(s1, batch_size=batch_size)
@@ -202,11 +198,6 @@ def learn_from_memory(model):
 
 
 def get_best_action(state):
-    '''
-    :param state:
-    :return:
-    '''
-    state = state.reshape(list(state.shape[0:2]) + [1] + list(resolution))  # converting to [ batch*kframes*1channel*width*height ]
     q = model.predict(state, batch_size=1)
     m = np.argmax(q, axis=1)[0]
     action = m  # wrong
@@ -219,6 +210,8 @@ def perform_learning_step(epoch):
 
     def exploration_rate(epoch):
         """# Define exploration rate change over time"""
+
+        # return 0.1
 
         start_eps = 1.0
         end_eps = 0.1
