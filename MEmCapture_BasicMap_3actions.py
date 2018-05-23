@@ -16,7 +16,7 @@ import pickle
 # Q-learning hyperparams
 learning_rate = 0.001
 discount_factor = 1.0
-epochs = 10
+epochs = 11
 learning_steps_per_epoch = 1000
 replay_memory_size = 10000
 test_memory_size = 10000
@@ -25,19 +25,17 @@ test_memory_size = 10000
 batch_size = 64
 
 # Training regime
-test_episodes_per_epoch = 10
+test_episodes_per_epoch = 1
 
 # Image params
-resolution = (100, 100)
+resolution = [100, 100]
 
 # Other parameters
 frame_repeat = 10
-resolution = [30, 45]
 kframes = 2
-resolution[1] = resolution[1]
-episodes_to_watch = 10
+episodes_to_watch = 1
 
-memory_save_file_name = "BasicMap_vizDOOM_" + str(resolution[0]) + "by" + str(resolution[1])
+memory_save_file_name = "BasicMap_vizDOOM_" + str(resolution[0]) + "by" + str(resolution[1]) + ".p"
 model_savefile = "models/Basic_kFr_zeroPad_lr001_fr10_k2_3actions.pth"
 if not os.path.exists('models'):
     os.makedirs('models')
